@@ -110,7 +110,7 @@ def launch_setup(context, *args, **kwargs):
         xarm_planner_parameters = {}
 
     xarm_planner_node = Node(
-        name=node_name,
+        #name=node_name,
         package='xarm_planner',
         executable=node_executable,
         output='screen',

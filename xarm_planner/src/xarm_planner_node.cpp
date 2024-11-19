@@ -3,9 +3,11 @@
  * Software License Agreement (BSD License)
  *
  * Author: Vinman <vinman.cub@gmail.com>
- ============================================================================*/
+ ============================================================================
+*/
 
 #include <signal.h>
+#include <algorithm> // Include for std::clamp
 #include <rclcpp/rclcpp.hpp>
 #include "xarm_planner/xarm_planner.h"
 #include <std_msgs/msg/bool.hpp>
@@ -13,6 +15,7 @@
 #include <xarm_msgs/srv/plan_joint.hpp>
 #include <xarm_msgs/srv/plan_exec.hpp>
 #include <xarm_msgs/srv/plan_single_straight.hpp>
+#include <xarm_msgs/srv/set_float32_list.hpp>  // Include the SetFloat32List service for scaling factors
 
 #define BIND_CLS_CB(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2)
 
@@ -28,6 +31,10 @@ private:
     bool do_single_cartesian_plan(const std::shared_ptr<xarm_msgs::srv::PlanSingleStraight::Request> req, std::shared_ptr<xarm_msgs::srv::PlanSingleStraight::Response> res);
     bool exec_plan_cb(const std::shared_ptr<xarm_msgs::srv::PlanExec::Request> req, std::shared_ptr<xarm_msgs::srv::PlanExec::Response> res);
     
+    // New service callback for setting scaling factors
+    bool set_scaling_factors_cb(const std::shared_ptr<xarm_msgs::srv::SetFloat32List::Request> req,
+                                std::shared_ptr<xarm_msgs::srv::SetFloat32List::Response> res);
+
 private:
     rclcpp::Node::SharedPtr node_;
     std::shared_ptr<xarm_planner::XArmPlanner> xarm_planner_;
@@ -38,6 +45,9 @@ private:
     rclcpp::Service<xarm_msgs::srv::PlanPose>::SharedPtr pose_plan_server_;
     rclcpp::Service<xarm_msgs::srv::PlanJoint>::SharedPtr joint_plan_server_;
     rclcpp::Service<xarm_msgs::srv::PlanSingleStraight>::SharedPtr single_straight_plan_server_;
+    
+    // New service server for setting scaling factors
+    rclcpp::Service<xarm_msgs::srv::SetFloat32List>::SharedPtr set_scaling_factors_server_;
 };
 
 XArmPlannerRunner::XArmPlannerRunner(rclcpp::Node::SharedPtr& node)
@@ -64,6 +74,11 @@ XArmPlannerRunner::XArmPlannerRunner(rclcpp::Node::SharedPtr& node)
     pose_plan_server_ = node_->create_service<xarm_msgs::srv::PlanPose>("xarm_pose_plan", BIND_CLS_CB(&XArmPlannerRunner::do_pose_plan));
     joint_plan_server_ = node_->create_service<xarm_msgs::srv::PlanJoint>("xarm_joint_plan", BIND_CLS_CB(&XArmPlannerRunner::do_joint_plan));
     single_straight_plan_server_ = node_->create_service<xarm_msgs::srv::PlanSingleStraight>("xarm_straight_plan", BIND_CLS_CB(&XArmPlannerRunner::do_single_cartesian_plan));
+    
+    // Initialize the new service server
+    set_scaling_factors_server_ = node_->create_service<xarm_msgs::srv::SetFloat32List>(
+        "xarm_set_scaling_factors",
+        std::bind(&XArmPlannerRunner::set_scaling_factors_cb, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 bool XArmPlannerRunner::do_pose_plan(const std::shared_ptr<xarm_msgs::srv::PlanPose::Request> req, std::shared_ptr<xarm_msgs::srv::PlanPose::Response> res)
@@ -94,6 +109,49 @@ bool XArmPlannerRunner::exec_plan_cb(const std::shared_ptr<xarm_msgs::srv::PlanE
     bool success = xarm_planner_->executePath(req->wait);
     res->success = success;
     return success;
+}
+
+bool XArmPlannerRunner::set_scaling_factors_cb(const std::shared_ptr<xarm_msgs::srv::SetFloat32List::Request> req,
+                                              std::shared_ptr<xarm_msgs::srv::SetFloat32List::Response> res)
+{
+    if (req->datas.size() != 2) {
+        res->ret = -1;
+        res->message = "Expected exactly 2 float32 values: [max_velocity_scaling_factor, max_acceleration_scaling_factor]";
+        RCLCPP_WARN(node_->get_logger(), "set_scaling_factors_cb: %s", res->message.c_str());
+        return true;
+    }
+
+    // Clone the input data to modify
+    std::vector<float> clamped_datas = req->datas;
+
+    // Clamp each value to the range [0.0, 1.0]
+    clamped_datas[0] = std::clamp(clamped_datas[0], 0.0f, 1.0f);
+    clamped_datas[1] = std::clamp(clamped_datas[1], 0.0f, 1.0f);
+
+    // Inform the user if any values were clamped
+    if (clamped_datas != req->datas) {
+        res->ret = -1;
+        res->message = "Input values were out of range and have been clamped to [0.0, 1.0].";
+        RCLCPP_WARN(node_->get_logger(), "set_scaling_factors_cb: %s", res->message.c_str());
+        // Proceed to set the clamped values
+    }
+
+    // Attempt to set the scaling factors with clamped values
+    bool success = xarm_planner_->setScalingFactors(clamped_datas);
+    if (success) {
+        if (clamped_datas != req->datas) {
+            res->ret = 0;
+            res->message = "Scaling factors clamped and updated successfully.";
+        } else {
+            res->ret = 0;
+            res->message = "Scaling factors updated successfully.";
+        }
+    } else {
+        res->ret = -1;
+        res->message = "Failed to update scaling factors.";
+        RCLCPP_ERROR(node_->get_logger(), "set_scaling_factors_cb: %s", res->message.c_str());
+    }
+    return true;
 }
 
 void exit_sig_handler(int signum)
