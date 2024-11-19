@@ -40,6 +40,10 @@ namespace xarm_planner
         bool planCartesianPath(const std::vector<geometry_msgs::msg::Pose>& pose_target_vector);
 
         bool executePath(bool wait = true);
+
+        // Setter Method for Scaling Factors
+        bool setScalingFactors(const std::vector<float>& datas);
+
     private:
         void init(const std::string& group_name);
 
@@ -48,6 +52,10 @@ namespace xarm_planner
         moveit::planning_interface::MoveGroupInterface::Plan xarm_plan_;
         moveit_msgs::msg::RobotTrajectory trajectory_;
         bool is_trajectory_;
+
+        // Scaling Factors (Make them modifiable at runtime)
+        double max_velocity_scaling_factor_;
+        double max_acceleration_scaling_factor_;
     };
 }
 
