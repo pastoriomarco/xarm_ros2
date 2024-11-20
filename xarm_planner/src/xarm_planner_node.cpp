@@ -1,4 +1,9 @@
-// src/xarm_ros2/xarm_planner/src/xarm_planner_node.cpp
+/* Copyright 2021 UFACTORY Inc. All Rights Reserved.
+ *
+ * Software License Agreement (BSD License)
+ *
+ * Author: Vinman <vinman.cub@gmail.com>
+ ============================================================================*/
 
 #include <signal.h>
 #include <algorithm> // for std::clamp

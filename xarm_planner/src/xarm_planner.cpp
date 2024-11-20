@@ -3,8 +3,7 @@
  * Software License Agreement (BSD License)
  *
  * Author: Vinman <vinman.cub@gmail.com>
- ============================================================================
-*/
+ ============================================================================*/
 
 #include "xarm_planner/xarm_planner.h"
 
