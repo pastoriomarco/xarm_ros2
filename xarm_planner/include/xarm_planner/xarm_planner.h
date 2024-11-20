@@ -43,6 +43,11 @@ namespace xarm_planner
 
         // Setter Method for Scaling Factors
         bool setScalingFactors(const std::vector<float>& datas);
+        
+        // Getter Method for MoveGroupInterface**
+        std::shared_ptr<moveit::planning_interface::MoveGroupInterface> getMoveGroup() const {
+            return move_group_;
+        }
 
     private:
         void init(const std::string& group_name);

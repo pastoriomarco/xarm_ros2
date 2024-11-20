@@ -1,13 +1,7 @@
-/* Copyright 2021 UFACTORY Inc. All Rights Reserved.
- *
- * Software License Agreement (BSD License)
- *
- * Author: Vinman <vinman.cub@gmail.com>
- ============================================================================
-*/
+// src/xarm_ros2/xarm_planner/src/xarm_planner_node.cpp
 
 #include <signal.h>
-#include <algorithm> // Include for std::clamp
+#include <algorithm> // for std::clamp
 #include <rclcpp/rclcpp.hpp>
 #include "xarm_planner/xarm_planner.h"
 #include <std_msgs/msg/bool.hpp>
@@ -15,7 +9,8 @@
 #include <xarm_msgs/srv/plan_joint.hpp>
 #include <xarm_msgs/srv/plan_exec.hpp>
 #include <xarm_msgs/srv/plan_single_straight.hpp>
-#include <xarm_msgs/srv/set_float32_list.hpp>  // Include the SetFloat32List service for scaling factors
+#include <xarm_msgs/srv/set_float32_list.hpp>
+#include <xarm_msgs/srv/call.hpp>
 
 #define BIND_CLS_CB(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2)
 
@@ -31,9 +26,16 @@ private:
     bool do_single_cartesian_plan(const std::shared_ptr<xarm_msgs::srv::PlanSingleStraight::Request> req, std::shared_ptr<xarm_msgs::srv::PlanSingleStraight::Response> res);
     bool exec_plan_cb(const std::shared_ptr<xarm_msgs::srv::PlanExec::Request> req, std::shared_ptr<xarm_msgs::srv::PlanExec::Response> res);
     
-    // New service callback for setting scaling factors
+    // Service callback for setting scaling factors
     bool set_scaling_factors_cb(const std::shared_ptr<xarm_msgs::srv::SetFloat32List::Request> req,
                                 std::shared_ptr<xarm_msgs::srv::SetFloat32List::Response> res);
+    
+    // Service callbacks for base and eef links
+    bool get_base_link_cb(const std::shared_ptr<xarm_msgs::srv::Call::Request> req,
+                         std::shared_ptr<xarm_msgs::srv::Call::Response> res);
+                         
+    bool get_eef_link_cb(const std::shared_ptr<xarm_msgs::srv::Call::Request> req,
+                        std::shared_ptr<xarm_msgs::srv::Call::Response> res);
 
 private:
     rclcpp::Node::SharedPtr node_;
@@ -46,8 +48,12 @@ private:
     rclcpp::Service<xarm_msgs::srv::PlanJoint>::SharedPtr joint_plan_server_;
     rclcpp::Service<xarm_msgs::srv::PlanSingleStraight>::SharedPtr single_straight_plan_server_;
     
-    // New service server for setting scaling factors
+    // Service server for setting scaling factors
     rclcpp::Service<xarm_msgs::srv::SetFloat32List>::SharedPtr set_scaling_factors_server_;
+    
+    // Service servers for base and eef links
+    rclcpp::Service<xarm_msgs::srv::Call>::SharedPtr get_base_link_server_;
+    rclcpp::Service<xarm_msgs::srv::Call>::SharedPtr get_eef_link_server_;
 };
 
 XArmPlannerRunner::XArmPlannerRunner(rclcpp::Node::SharedPtr& node)
@@ -75,11 +81,44 @@ XArmPlannerRunner::XArmPlannerRunner(rclcpp::Node::SharedPtr& node)
     joint_plan_server_ = node_->create_service<xarm_msgs::srv::PlanJoint>("xarm_joint_plan", BIND_CLS_CB(&XArmPlannerRunner::do_joint_plan));
     single_straight_plan_server_ = node_->create_service<xarm_msgs::srv::PlanSingleStraight>("xarm_straight_plan", BIND_CLS_CB(&XArmPlannerRunner::do_single_cartesian_plan));
     
-    // Initialize the new service server
+    // Initialize the service server for setting scaling factors
     set_scaling_factors_server_ = node_->create_service<xarm_msgs::srv::SetFloat32List>(
         "xarm_set_scaling_factors",
         std::bind(&XArmPlannerRunner::set_scaling_factors_cb, this, std::placeholders::_1, std::placeholders::_2));
+    
+    // Initialize the service servers for base and eef links
+    get_base_link_server_ = node_->create_service<xarm_msgs::srv::Call>(
+        "get_base_link",
+        std::bind(&XArmPlannerRunner::get_base_link_cb, this, std::placeholders::_1, std::placeholders::_2));
+        
+    get_eef_link_server_ = node_->create_service<xarm_msgs::srv::Call>(
+        "get_eef_link",
+        std::bind(&XArmPlannerRunner::get_eef_link_cb, this, std::placeholders::_1, std::placeholders::_2));
 }
+
+bool XArmPlannerRunner::get_base_link_cb(const std::shared_ptr<xarm_msgs::srv::Call::Request> req,
+                                         std::shared_ptr<xarm_msgs::srv::Call::Response> res)
+{
+    (void)req; // Unused
+    std::string base_link = xarm_planner_->getMoveGroup()->getPlanningFrame();
+    res->ret = 0;
+    res->message = base_link;
+    RCLCPP_INFO(node_->get_logger(), "get_base_link: %s", base_link.c_str());
+    return true;
+}
+
+bool XArmPlannerRunner::get_eef_link_cb(const std::shared_ptr<xarm_msgs::srv::Call::Request> req,
+                                        std::shared_ptr<xarm_msgs::srv::Call::Response> res)
+{
+    (void)req; // Unused
+    std::string eef_link = xarm_planner_->getMoveGroup()->getEndEffectorLink();
+    res->ret = 0;
+    res->message = eef_link;
+    RCLCPP_INFO(node_->get_logger(), "get_eef_link: %s", eef_link.c_str());
+    return true;
+}
+
+// Existing methods...
 
 bool XArmPlannerRunner::do_pose_plan(const std::shared_ptr<xarm_msgs::srv::PlanPose::Request> req, std::shared_ptr<xarm_msgs::srv::PlanPose::Response> res)
 {
