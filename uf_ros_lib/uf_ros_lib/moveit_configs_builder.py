@@ -601,6 +601,30 @@ class MoveItConfigsBuilder(ParameterBuilder):
             # }
         }
         return self
+    
+    #####################################################################################################
+    ## Example of sensors_3d.yaml configuration, to create inside xarm_moveit_config/config/<robot_name>
+    ## This works for a realsense D435i that publishes in the default point_cloud_topic
+    ## Launch command for the realsense camera: 
+    ## ros2 launch realsense2_camera rs_launch.py depth_module.depth_profile:=1280x720x30 pointcloud.enable:=true
+
+    ## sensors_3d.yaml:
+
+    # octomap_resolution: 0.02                                          # Sets the octomap resolution
+
+    # sensors:
+    # - ros                                                             # Specifies that the sensor configuration named 'ros' will be used
+
+    # ros:
+    # sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater     # Plugin to use
+    # point_cloud_topic: /camera/camera/depth/color/points              # Topic to subscribe to for point clouds
+    # max_range: 2.0                                                    # Maximum range for the sensor
+    # point_subsample: 1                                                # Subsampling rate for point clouds
+    # padding_offset: 0.1                                               # Padding offset for the octomap
+    # padding_scale: 1.0                                                # Padding scale for the octomap
+    # max_update_rate: 1.0                                              # Maximum update rate for the octomap
+    # filtered_cloud_topic: filtered_cloud                              # Topic to publish the filtered cloud
+
 
     def sensors_3d(self, file_path = None):
         """Load sensors_3d parameters.
