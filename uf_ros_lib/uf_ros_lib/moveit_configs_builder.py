@@ -586,8 +586,8 @@ class MoveItConfigsBuilder(ParameterBuilder):
         publish_geometry_updates = True,
         publish_state_updates = True,
         publish_transforms_updates = True,
-        publish_robot_description = True,
-        publish_robot_description_semantic = True,
+        publish_robot_description = False,
+        publish_robot_description_semantic = False,
     ):
         self.__moveit_configs.planning_scene_monitor = {
             # TODO: Fix parameter namespace upstream -- see planning_scene_monitor.cpp:262
@@ -1408,8 +1408,8 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
         publish_geometry_updates = True,
         publish_state_updates = True,
         publish_transforms_updates = True,
-        publish_robot_description = True,
-        publish_robot_description_semantic = True,
+        publish_robot_description = False,
+        publish_robot_description_semantic = False,
     ):
         self.__moveit_configs.planning_scene_monitor = {
             # TODO: Fix parameter namespace upstream -- see planning_scene_monitor.cpp:262
