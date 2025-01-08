@@ -114,7 +114,7 @@ ufactory_driver:
       get_tgpio_analog: false
       get_cgpio_analog: false
       set_tgpio_digital: false
-      set_cgpio_digital: true
+      set_cgpio_digital: false
       set_tgpio_digital_with_xyz: false
       set_cgpio_digital_with_xyz: false
       set_cgpio_analog: false
