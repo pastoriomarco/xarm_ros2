@@ -138,3 +138,83 @@ class DualKinematicsYAML(BaseYamlSubstitution):
         kinematics_yaml.update(kinematics_yaml_2)
         
         return yaml.dump(kinematics_yaml)
+
+@expose_substitution("triple-kinematics")
+class TripleKinematicsYAML(BaseYamlSubstitution):
+    def __init__(self, file_path, package_path=None,
+                 prefix_1='L_', prefix_2='M_', prefix_3='R_',
+                 robot_type_1='xarm', robot_type_2='xarm', robot_type_3='xarm',
+                 robot_dof_1=7, robot_dof_2=7, robot_dof_3=7):
+        super().__init__()
+        self.__file_path = file_path
+        self.__package_path = package_path
+        self.__prefix_1 = prefix_1
+        self.__prefix_2 = prefix_2
+        self.__prefix_3 = prefix_3
+        self.__robot_type_1 = robot_type_1
+        self.__robot_type_2 = robot_type_2
+        self.__robot_type_3 = robot_type_3
+        self.__robot_dof_1 = robot_dof_1
+        self.__robot_dof_2 = robot_dof_2
+        self.__robot_dof_3 = robot_dof_3
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 1:
+            raise TypeError('TripleKinematicsYAML substitution expects 1 argument')
+        kwargs = {"file_path": data[0]}
+        return cls, kwargs
+
+    def describe(self):
+        return 'TripleKinematicsYAML(file_path={}, package_path={}, prefix_1={}, prefix_2={}, prefix_3={}, robot_type_1={}, robot_type_2={}, robot_type_3={}, robot_dof_1={}, robot_dof_2={}, robot_dof_3={})'.format(
+            self.get_var_describe(self.__file_path),
+            self.get_var_describe(self.__package_path),
+            self.get_var_describe(self.__prefix_1),
+            self.get_var_describe(self.__prefix_2),
+            self.get_var_describe(self.__prefix_3),
+            self.get_var_describe(self.__robot_type_1),
+            self.get_var_describe(self.__robot_type_2),
+            self.get_var_describe(self.__robot_type_3),
+            self.get_var_describe(self.__robot_dof_1),
+            self.get_var_describe(self.__robot_dof_2),
+            self.get_var_describe(self.__robot_dof_3)
+        )
+
+    def perform(self, context):
+        prefix_1 = self.get_var_perform(self.__prefix_1, context)
+        prefix_2 = self.get_var_perform(self.__prefix_2, context)
+        prefix_3 = self.get_var_perform(self.__prefix_3, context)
+        robot_type_1 = self.get_var_perform(self.__robot_type_1, context)
+        robot_type_2 = self.get_var_perform(self.__robot_type_2, context)
+        robot_type_3 = self.get_var_perform(self.__robot_type_3, context)
+        robot_dof_1 = self.get_var_perform(self.__robot_dof_1, context)
+        robot_dof_2 = self.get_var_perform(self.__robot_dof_2, context)
+        robot_dof_3 = self.get_var_perform(self.__robot_dof_3, context)
+
+        robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')
+        robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')
+        robot_name_3 = '{}{}'.format(robot_type_3, robot_dof_3 if robot_type_3 == 'xarm' else '6' if robot_type_3 == 'lite' else '')
+        
+        file_path_1 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_1 / 'kinematics.yaml')
+        file_path_2 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_2 / 'kinematics.yaml')
+        file_path_3 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_3 / 'kinematics.yaml')
+        
+        kinematics_yaml_1 = load_yaml(file_path_1) or {}
+        if prefix_1:
+            for name in list(kinematics_yaml_1.keys()):
+                kinematics_yaml_1['{}{}'.format(prefix_1, name)] = kinematics_yaml_1.pop(name)
+        kinematics_yaml_2 = load_yaml(file_path_2) or {}
+        if prefix_2:
+            for name in list(kinematics_yaml_2.keys()):
+                kinematics_yaml_2['{}{}'.format(prefix_2, name)] = kinematics_yaml_2.pop(name)
+        kinematics_yaml_3 = load_yaml(file_path_3) or {}
+        if prefix_3:
+            for name in list(kinematics_yaml_3.keys()):
+                kinematics_yaml_3['{}{}'.format(prefix_3, name)] = kinematics_yaml_3.pop(name)
+        
+        kinematics_yaml = {}
+        kinematics_yaml.update(kinematics_yaml_1)
+        kinematics_yaml.update(kinematics_yaml_2)
+        kinematics_yaml.update(kinematics_yaml_3)
+        
+        return yaml.dump(kinematics_yaml)

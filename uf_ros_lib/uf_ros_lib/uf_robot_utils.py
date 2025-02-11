@@ -181,3 +181,113 @@ def generate_dual_ros2_control_params_temp_file(
     with NamedTemporaryFile(mode='w', prefix='launch_params_', delete=False) as h:
         yaml.dump(ros2_control_params_yaml, h, default_flow_style=False)
         return h.name
+
+def generate_triple_ros2_control_params_temp_file(
+    ros2_control_params_path_1, ros2_control_params_path_2, ros2_control_params_path_3,
+    prefix_1='L_', prefix_2='M_', prefix_3='R_',
+    add_gripper_1=False, add_gripper_2=False, add_gripper_3=False,
+    add_bio_gripper_1=False, add_bio_gripper_2=False, add_bio_gripper_3=False,
+    ros_namespace='', update_rate=None,
+    robot_type_1='xarm', robot_type_2='xarm', robot_type_3='xarm'):
+
+    # Load the three YAML files.
+    with open(ros2_control_params_path_1, 'r') as f:
+        ros2_control_params_yaml_1 = yaml.safe_load(f)
+    with open(ros2_control_params_path_2, 'r') as f:
+        ros2_control_params_yaml_2 = yaml.safe_load(f)
+    with open(ros2_control_params_path_3, 'r') as f:
+        ros2_control_params_yaml_3 = yaml.safe_load(f)
+
+    # Set update_rate if provided.
+    if update_rate is not None:
+        ros2_control_params_yaml_1['controller_manager']['ros__parameters']['update_rate'] = update_rate
+        ros2_control_params_yaml_2['controller_manager']['ros__parameters']['update_rate'] = update_rate
+        ros2_control_params_yaml_3['controller_manager']['ros__parameters']['update_rate'] = update_rate
+
+    # Process gripper parameters for robot 1.
+    if add_gripper_1:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', '{}_gripper_controllers.yaml'.format(robot_type_1))
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_1['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_1[name] = gripper_control_params_yaml[name]
+    elif add_bio_gripper_1:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', 'bio_gripper_controllers.yaml')
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_1['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_1[name] = gripper_control_params_yaml[name]
+
+    # Process gripper parameters for robot 2.
+    if add_gripper_2:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', '{}_gripper_controllers.yaml'.format(robot_type_2))
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_2['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_2[name] = gripper_control_params_yaml[name]
+    elif add_bio_gripper_2:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', 'bio_gripper_controllers.yaml')
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_2['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_2[name] = gripper_control_params_yaml[name]
+
+    # Process gripper parameters for robot 3.
+    if add_gripper_3:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', '{}_gripper_controllers.yaml'.format(robot_type_3))
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_3['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_3[name] = gripper_control_params_yaml[name]
+    elif add_bio_gripper_3:
+        gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'),
+                                           'config', 'bio_gripper_controllers.yaml')
+        if os.path.exists(gripper_control_params_path):
+            with open(gripper_control_params_path, 'r') as f:
+                gripper_control_params_yaml = yaml.safe_load(f)
+            for name, value in gripper_control_params_yaml['controller_manager']['ros__parameters'].items():
+                ros2_control_params_yaml_3['controller_manager']['ros__parameters'][name] = value
+                if name in gripper_control_params_yaml:
+                    ros2_control_params_yaml_3[name] = gripper_control_params_yaml[name]
+
+    # Apply prefixes (using the already defined helper).
+    add_prefix_to_ros2_control_params(prefix_1, ros2_control_params_yaml_1)
+    add_prefix_to_ros2_control_params(prefix_2, ros2_control_params_yaml_2)
+    add_prefix_to_ros2_control_params(prefix_3, ros2_control_params_yaml_3)
+
+    # Merge the three dictionaries.
+    ros2_control_params_yaml = {}
+    ros2_control_params_yaml.update(ros2_control_params_yaml_1)
+    ros2_control_params_yaml.update(ros2_control_params_yaml_2)
+    ros2_control_params_yaml.update(ros2_control_params_yaml_3)
+    ros2_control_params_yaml['controller_manager']['ros__parameters'].update(
+        ros2_control_params_yaml_1['controller_manager']['ros__parameters'])
+    ros2_control_params_yaml['controller_manager']['ros__parameters'].update(
+        ros2_control_params_yaml_2['controller_manager']['ros__parameters'])
+    ros2_control_params_yaml['controller_manager']['ros__parameters'].update(
+        ros2_control_params_yaml_3['controller_manager']['ros__parameters'])
+    if ros_namespace:
+        ros2_control_params_yaml = { ros_namespace: ros2_control_params_yaml }
+    with NamedTemporaryFile(mode='w', prefix='launch_params_', delete=False) as h:
+        yaml.dump(ros2_control_params_yaml, h, default_flow_style=False)
+        return h.name

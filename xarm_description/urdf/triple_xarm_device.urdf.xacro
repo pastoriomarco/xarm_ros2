@@ -1,48 +1,68 @@
 <?xml version='1.0' encoding='utf-8'?>
-<robot xmlns:xacro="http://ros.org/wiki/xacro" name="DUAL_UF_ROBOT">
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="TRIPLE_UF_ROBOT">
+  <!-- Define arguments for each of the three robots -->
   <xacro:arg name="prefix_1" default="L_"/>
-  <xacro:arg name="prefix_2" default="R_"/>
+  <xacro:arg name="prefix_2" default="M_"/>
+  <xacro:arg name="prefix_3" default="R_"/>
+
   <xacro:arg name="hw_ns" default="xarm"/>
   <xacro:arg name="limited" default="false"/>
   <xacro:arg name="effort_control" default="false"/>
   <xacro:arg name="velocity_control" default="false"/>
+
   <xacro:arg name="add_gripper_1" default="false"/>
   <xacro:arg name="add_gripper_2" default="false"/>
+  <xacro:arg name="add_gripper_3" default="false"/>
   <xacro:arg name="add_vacuum_gripper_1" default="false"/>
   <xacro:arg name="add_vacuum_gripper_2" default="false"/>
+  <xacro:arg name="add_vacuum_gripper_3" default="false"/>
   <xacro:arg name="add_bio_gripper_1" default="false"/>
   <xacro:arg name="add_bio_gripper_2" default="false"/>
+  <xacro:arg name="add_bio_gripper_3" default="false"/>
   <xacro:arg name="model1300_1" default="false"/>
   <xacro:arg name="model1300_2" default="false"/>
+  <xacro:arg name="model1300_3" default="false"/>
 
   <xacro:arg name="attach_to_1" default="world"/>
   <xacro:arg name="attach_to_2" default="world"/>
+  <xacro:arg name="attach_to_3" default="world"/>
   <xacro:arg name="attach_xyz_1" default="0 0 0"/>
   <xacro:arg name="attach_xyz_2" default="0 1 0"/>
+  <xacro:arg name="attach_xyz_3" default="0 -1 0"/>
   <xacro:arg name="attach_rpy_1" default="0 0 0"/>
   <xacro:arg name="attach_rpy_2" default="0 0 0"/>
+  <xacro:arg name="attach_rpy_3" default="0 0 0"/>
   <xacro:arg name="create_attach_link_1" default="true"/>
   <xacro:arg name="create_attach_link_2" default="false"/>
+  <xacro:arg name="create_attach_link_3" default="false"/>
 
   <xacro:arg name="dof_1" default="7"/>
   <xacro:arg name="dof_2" default="7"/>
+  <xacro:arg name="dof_3" default="7"/>
   <xacro:arg name="robot_ip_1" default=""/>
   <xacro:arg name="robot_ip_2" default=""/>
+  <xacro:arg name="robot_ip_3" default=""/>
   <xacro:arg name="robot_type_1" default="xarm"/>
   <xacro:arg name="robot_type_2" default="xarm"/>
+  <xacro:arg name="robot_type_3" default="xarm"/>
   <xacro:arg name="robot_sn_1" default=""/>
   <xacro:arg name="robot_sn_2" default=""/>
+  <xacro:arg name="robot_sn_3" default=""/>
   <xacro:arg name="report_type_1" default="normal"/>
   <xacro:arg name="report_type_2" default="normal"/>
+  <xacro:arg name="report_type_3" default="normal"/>
 
   <xacro:arg name="ros2_control_plugin" default="uf_robot_hardware/UFRobotSystemHardware"/>
   <xacro:arg name="ros2_control_params" default=""/>
 
   <xacro:arg name="add_realsense_d435i_1" default="false"/>
   <xacro:arg name="add_realsense_d435i_2" default="false"/>
+  <xacro:arg name="add_realsense_d435i_3" default="false"/>
   <xacro:arg name="add_d435i_links_1" default="true"/>
   <xacro:arg name="add_d435i_links_2" default="true"/>
+  <xacro:arg name="add_d435i_links_3" default="true"/>
 
+  <!-- Geometry arguments for each robot -->
   <xacro:arg name="add_other_geometry_1" default="false"/>
   <xacro:arg name="geometry_type_1" default="box"/>
   <xacro:arg name="geometry_mass_1" default="0.1"/>
@@ -69,19 +89,35 @@
   <xacro:arg name="geometry_mesh_tcp_xyz_2" default="0 0 0"/>
   <xacro:arg name="geometry_mesh_tcp_rpy_2" default="0 0 0"/>
 
+  <xacro:arg name="add_other_geometry_3" default="false"/>
+  <xacro:arg name="geometry_type_3" default="box"/>
+  <xacro:arg name="geometry_mass_3" default="0.1"/>
+  <xacro:arg name="geometry_height_3" default="0.1"/>
+  <xacro:arg name="geometry_radius_3" default="0.1"/>
+  <xacro:arg name="geometry_length_3" default="0.1"/>
+  <xacro:arg name="geometry_width_3" default="0.1"/>
+  <xacro:arg name="geometry_mesh_filename_3" default=""/>
+  <xacro:arg name="geometry_mesh_origin_xyz_3" default="0 0 0"/>
+  <xacro:arg name="geometry_mesh_origin_rpy_3" default="0 0 0"/>
+  <xacro:arg name="geometry_mesh_tcp_xyz_3" default="0 0 0"/>
+  <xacro:arg name="geometry_mesh_tcp_rpy_3" default="0 0 0"/>
+
   <xacro:arg name="baud_checkset_1" default="true"/>
   <xacro:arg name="baud_checkset_2" default="true"/>
+  <xacro:arg name="baud_checkset_3" default="true"/>
   <xacro:arg name="default_gripper_baud_1" default="2000000"/>
   <xacro:arg name="default_gripper_baud_2" default="2000000"/>
+  <xacro:arg name="default_gripper_baud_3" default="2000000"/>
 
   <xacro:arg name="mesh_suffix" default="stl"/>
-
   <xacro:arg name="kinematics_suffix_1" default=""/>
   <xacro:arg name="kinematics_suffix_2" default=""/>
+  <xacro:arg name="kinematics_suffix_3" default=""/>
 
-  <!-- load xarm device -->
+  <!-- Include the common xarm device macro -->
   <xacro:include filename="$(find xarm_description)/urdf/xarm_device_macro.xacro" />
-    
+
+  <!-- Create robot device 1 -->
   <xacro:xarm_device prefix="$(arg prefix_1)" hw_ns="$(arg hw_ns)" limited="$(arg limited)" 
     effort_control="$(arg effort_control)" velocity_control="$(arg velocity_control)"
     add_gripper="$(arg add_gripper_1)" add_vacuum_gripper="$(arg add_vacuum_gripper_1)" 
@@ -101,6 +137,8 @@
     robot_ip="$(arg robot_ip_1)" report_type="$(arg report_type_1)"
     baud_checkset="$(arg baud_checkset_1)" default_gripper_baud="$(arg default_gripper_baud_1)"
     model1300="$(arg model1300_1)" robot_sn="$(arg robot_sn_1)" mesh_suffix="$(arg mesh_suffix)" kinematics_suffix="$(arg kinematics_suffix_1)" />
+
+  <!-- Create robot device 2 -->
   <xacro:xarm_device prefix="$(arg prefix_2)" hw_ns="$(arg hw_ns)" limited="$(arg limited)" 
     effort_control="$(arg effort_control)" velocity_control="$(arg velocity_control)"
     add_gripper="$(arg add_gripper_2)" add_vacuum_gripper="$(arg add_vacuum_gripper_2)" 
@@ -121,4 +159,24 @@
     baud_checkset="$(arg baud_checkset_2)" default_gripper_baud="$(arg default_gripper_baud_2)"
     model1300="$(arg model1300_2)" robot_sn="$(arg robot_sn_2)" mesh_suffix="$(arg mesh_suffix)" kinematics_suffix="$(arg kinematics_suffix_2)" />
 
+  <!-- Create robot device 3 -->
+  <xacro:xarm_device prefix="$(arg prefix_3)" hw_ns="$(arg hw_ns)" limited="$(arg limited)" 
+    effort_control="$(arg effort_control)" velocity_control="$(arg velocity_control)"
+    add_gripper="$(arg add_gripper_3)" add_vacuum_gripper="$(arg add_vacuum_gripper_3)" 
+    add_bio_gripper="$(arg add_bio_gripper_3)" dof="$(arg dof_3)"
+    ros2_control_plugin="$(arg ros2_control_plugin)" robot_type="$(arg robot_type_3)"
+    load_gazebo_plugin="true" ros2_control_params="$(arg ros2_control_params)"
+    attach_to="$(arg attach_to_3)" attach_xyz="$(arg attach_xyz_3)" attach_rpy="$(arg attach_rpy_3)" create_attach_link="$(arg create_attach_link_3)"
+    add_realsense_d435i="$(arg add_realsense_d435i_3)" 
+    add_d435i_links="$(arg add_d435i_links_3)" 
+    add_other_geometry="$(arg add_other_geometry_3)" 
+    geometry_type="$(arg geometry_type_3)" geometry_mass="$(arg geometry_mass_3)"
+    geometry_height="$(arg geometry_height_3)" geometry_radius="$(arg geometry_radius_3)"
+    geometry_length="$(arg geometry_length_3)" geometry_width="$(arg geometry_width_3)"
+    geometry_mesh_filename="$(arg geometry_mesh_filename_3)"
+    geometry_mesh_origin_xyz="$(arg geometry_mesh_origin_xyz_3)" geometry_mesh_origin_rpy="$(arg geometry_mesh_origin_rpy_3)"
+    geometry_mesh_tcp_xyz="$(arg geometry_mesh_tcp_xyz_3)" geometry_mesh_tcp_rpy="$(arg geometry_mesh_tcp_rpy_3)"
+    robot_ip="$(arg robot_ip_3)" report_type="$(arg report_type_3)"
+    baud_checkset="$(arg baud_checkset_3)" default_gripper_baud="$(arg default_gripper_baud_3)"
+    model1300="$(arg model1300_3)" robot_sn="$(arg robot_sn_3)" mesh_suffix="$(arg mesh_suffix)" kinematics_suffix="$(arg kinematics_suffix_3)" />
 </robot>
