@@ -78,7 +78,8 @@ bool XArmPlanner::planCartesianPath(const std::vector<geometry_msgs::msg::Pose>&
 {   
     // moveit_msgs::msg::RobotTrajectory trajectory;
     
-    double fraction = move_group_->computeCartesianPath(pose_target_vector, eef_step, jump_threshold, trajectory_);
+    // double fraction = move_group_->computeCartesianPath(pose_target_vector, eef_step, jump_threshold, trajectory_);
+    double fraction = move_group_->computeCartesianPath(pose_target_vector, eef_step, trajectory_);
     bool success = true;
     if(fraction < 0.9) {
         RCLCPP_ERROR(node_->get_logger(), "planCartesianPath: plan failed, fraction=%lf", fraction);
