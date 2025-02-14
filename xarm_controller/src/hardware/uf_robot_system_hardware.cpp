@@ -447,7 +447,7 @@ namespace uf_robot_hardware
             req_switch_controller_->timeout = rclcpp::Duration::from_seconds(2.0);
             _call_request(client_switch_controller_, req_switch_controller_, res_switch_controller_);
         }
-        // update_goal_state_pub_->publish(update_goal_state_msg_);
+        update_goal_state_pub_->publish(update_goal_state_msg_);
     }
 
     bool UFRobotSystemHardware::_check_cmds_is_change(float *prev, float *cur, double threshold)
