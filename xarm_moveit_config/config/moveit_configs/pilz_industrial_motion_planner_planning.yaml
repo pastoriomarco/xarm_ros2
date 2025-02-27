@@ -8,3 +8,9 @@ default_planner_config: PTP
 capabilities: >-
   pilz_industrial_motion_planner/MoveGroupSequenceAction
   pilz_industrial_motion_planner/MoveGroupSequenceService
+
+default_workspace_bounds: 5.0
+start_state_max_bounds_error: 0.1
+start_state_max_dt: 0.5
+jiggle_fraction: 0.02
+max_sampling_attempts: 100
