@@ -217,6 +217,14 @@ def launch_setup(context, *args, **kwargs):
             'prefix_2': prefix_2,
             'no_gui_ctrl': no_gui_ctrl,
             'use_sim_time': 'false',
+
+            'attach_to_1': attach_to_1,
+            'attach_to_2': attach_to_2,
+            'attach_xyz_1': attach_xyz_1,
+            'attach_xyz_2': attach_xyz_2,
+            'attach_rpy_1': attach_rpy_1,
+            'attach_rpy_2': attach_rpy_2,
+
             'moveit_config_dump': yaml.dump(moveit_config.to_dict()),
         }.items(),
     )

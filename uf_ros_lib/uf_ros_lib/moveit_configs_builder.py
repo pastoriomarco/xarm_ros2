@@ -919,10 +919,10 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
 
         attach_to_1 = get_param_str('attach_to_1', 'world')
         attach_to_2 = get_param_str('attach_to_2', 'world')
-        attach_xyz_1 = get_param_str('attach_xyz_1', '0 0 0')
-        attach_xyz_2 = get_param_str('attach_xyz_2', '0 1 0')
-        attach_rpy_1 = get_param_str('attach_rpy_1', '0 0 0')
-        attach_rpy_2 = get_param_str('attach_rpy_2', '0 0 0')
+        attach_xyz_1 = get_list_param_str('attach_xyz_1', '0 0 0')
+        attach_xyz_2 = get_list_param_str('attach_xyz_2', '0 1 0')
+        attach_rpy_1 = get_list_param_str('attach_rpy_1', '0 0 0')
+        attach_rpy_2 = get_list_param_str('attach_rpy_2', '0 0 0')
         create_attach_link_1 = get_param_str('create_attach_link_1', 'true')
         create_attach_link_2 = get_param_str('create_attach_link_2', 'false')
             
