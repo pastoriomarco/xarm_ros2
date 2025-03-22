@@ -40,6 +40,7 @@ set(msg_files
   "msg/RobotMsg.msg"
   "msg/IOState.msg"
   "msg/CIOState.msg"
+  "msg/MoveVelocity.msg"
 )
 
 set(srv_dir "srv")

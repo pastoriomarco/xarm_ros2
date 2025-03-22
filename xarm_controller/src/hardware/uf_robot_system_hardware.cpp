@@ -152,7 +152,10 @@ namespace uf_robot_hardware
         RCLCPP_INFO(LOGGER, "[%s] dof: %d, velocity_control: %d, add_gripper: %d, add_bio_gripper: %d, baud_checkset: %d, default_gripper_baud: %d", 
             robot_ip_.c_str(), dof, velocity_control_, add_gripper, add_bio_gripper, baud_checkset, default_gripper_baud);
         
-        xarm_driver_.init(node_, robot_ip_);
+        // 20250318, disable xarm_driver publish joint_states
+        xarm_driver_.init(node_, robot_ip_, true);
+        // 20250318, get joint_states msg reference from xarm_driver
+        joint_state_msg_ = xarm_driver_.get_joint_states();
     }
 
     CallbackReturn UFRobotSystemHardware::on_init(const hardware_interface::HardwareInfo& info)
@@ -321,6 +324,18 @@ namespace uf_robot_hardware
 					// effort_states_[j] = 0.0;
 				}
             }
+
+            // 20250318, update joint_states msg and publish
+            joint_state_msg_->header.stamp = curr_read_time_;
+            for(int i = 0; i < joint_state_msg_->position.size(); i++)
+            {
+                joint_state_msg_->position[i] = position_states_[i];
+                joint_state_msg_->velocity[i] = velocity_states_[i];
+                if (use_new)
+                    joint_state_msg_->effort[i] = (double)curr_read_effort_[i];
+            }
+            xarm_driver_.pub_joint_state(*joint_state_msg_);
+
             if (!initialized_) {
                 for (uint i = 0; i < position_states_.size(); i++) {
                     position_cmds_[i] = position_states_[i];

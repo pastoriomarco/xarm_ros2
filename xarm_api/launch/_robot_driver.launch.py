@@ -59,6 +59,7 @@ def launch_setup(context, *args, **kwargs):
     prefix = LaunchConfiguration('prefix', default='')
     baud_checkset = LaunchConfiguration('baud_checkset', default=True)
     default_gripper_baud = LaunchConfiguration('default_gripper_baud', default=2000000)
+    joint_states_rate = LaunchConfiguration('joint_states_rate', default=-1)
     
     show_rviz = LaunchConfiguration('show_rviz', default=False)
     robot_type = LaunchConfiguration('robot_type', default='xarm')
@@ -90,6 +91,7 @@ def launch_setup(context, *args, **kwargs):
                 'prefix': prefix.perform(context).strip('/'),
                 'baud_checkset': baud_checkset,
                 'default_gripper_baud': default_gripper_baud,
+                'joint_states_rate': joint_states_rate,
             },
         ]
     )

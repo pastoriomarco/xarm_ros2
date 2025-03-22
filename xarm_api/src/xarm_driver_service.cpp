@@ -7,7 +7,8 @@
 #include "xarm_api/xarm_driver.h"
 
 #define PARAM_ERROR 997
-#define BIND_CLS_CB(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2)
+#define BIND_CLS_CB_1(func) std::bind(func, this, std::placeholders::_1)
+#define BIND_CLS_CB_2(func) std::bind(func, this, std::placeholders::_1, std::placeholders::_2)
 
 namespace xarm_api
 {
@@ -17,11 +18,24 @@ namespace xarm_api
         bool enable;
         node_->get_parameter_or("services." + service_name, enable, false);
         if (service_debug_ || enable) {
-            auto service = hw_node_->create_service<ServiceT>(service_name, BIND_CLS_CB(callback));
+            auto service = hw_node_->create_service<ServiceT>(service_name, BIND_CLS_CB_2(callback));
             RCLCPP_DEBUG(node_->get_logger(), "create_service: %s", service->get_service_name());
             return service;
         }
         return NULL;
+    }
+
+    void XArmDriver::_init_subscription(void)
+    {
+        bool vc_set_joint_enable;
+        bool vc_set_cartesian_enable;
+        node_->get_parameter_or("services.vc_set_joint_velocity", vc_set_joint_enable, false);
+        node_->get_parameter_or("services.vc_set_cartesian_velocity", vc_set_cartesian_enable, false);
+
+        if (vc_set_joint_enable)
+            subscription_vc_set_joint_velocity_ = hw_node_->create_subscription<xarm_msgs::msg::MoveVelocity>("vc_set_joint_velocity", 1, BIND_CLS_CB_1(&XArmDriver::_vc_set_joint_velocity_topic_callback));
+        if (vc_set_cartesian_enable)
+            subscription_vc_set_cartesian_velocity_ = hw_node_->create_subscription<xarm_msgs::msg::MoveVelocity>("vc_set_cartesian_velocity", 1, BIND_CLS_CB_1(&XArmDriver::_vc_set_cartesian_velocity_topic_callback));
     }
 
     void XArmDriver::_init_service(void)
@@ -1024,6 +1038,18 @@ namespace xarm_api
         res->ret = arm->vc_set_joint_velocity(speeds, req->is_sync, req->duration);
         return true;
     }
+    void XArmDriver::_vc_set_joint_velocity_topic_callback(const xarm_msgs::msg::MoveVelocity::SharedPtr msg)
+    {
+        if (msg->speeds.size() < dof_) {
+            RCLCPP_ERROR(node_->get_logger(), "The speeds parameter length is incorrect. size=%ld (Expected=%d)", msg->speeds.size(), dof_);
+            return;
+        }
+        float speeds[7] = { 0 };
+        for (int i = 0; i < std::min((int)msg->speeds.size(), 7); i++) {
+            speeds[i] = msg->speeds[i];
+        }
+        arm->vc_set_joint_velocity(speeds, msg->is_sync, msg->duration);
+    }
 
     bool XArmDriver::_vc_set_cartesian_velocity(const std::shared_ptr<xarm_msgs::srv::MoveVelocity::Request> req, std::shared_ptr<xarm_msgs::srv::MoveVelocity::Response> res)
     {
@@ -1033,6 +1059,14 @@ namespace xarm_api
         }
         res->ret = arm->vc_set_cartesian_velocity(&req->speeds[0], req->is_tool_coord, req->duration);
         return true;
+    }
+    void XArmDriver::_vc_set_cartesian_velocity_topic_callback(const xarm_msgs::msg::MoveVelocity::SharedPtr msg)
+    {
+        if (msg->speeds.size() < 6) {
+            RCLCPP_ERROR(node_->get_logger(), "The speeds parameter length is incorrect. size=%ld (Expected=6)", msg->speeds.size());
+            return;
+        }
+        arm->vc_set_cartesian_velocity(&msg->speeds[0], msg->is_tool_coord, msg->duration);
     }
 
     bool XArmDriver::_get_tgpio_digital(const std::shared_ptr<xarm_msgs::srv::GetDigitalIO::Request> req, std::shared_ptr<xarm_msgs::srv::GetDigitalIO::Response> res)

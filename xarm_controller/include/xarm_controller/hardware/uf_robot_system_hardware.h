@@ -93,6 +93,7 @@ namespace uf_robot_hardware
         std::shared_ptr<rclcpp::Node> node_;
         std::shared_ptr<rclcpp::Node> hw_node_;
         xarm_api::XArmDriver xarm_driver_;
+        sensor_msgs::msg::JointState *joint_state_msg_;
 
         std::shared_ptr<controller_manager_msgs::srv::ListControllers::Request> req_list_controller_;
 	    std::shared_ptr<controller_manager_msgs::srv::ListControllers::Response> res_list_controller_;
