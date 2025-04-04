@@ -102,13 +102,13 @@ class PlanningPipelinesYAML(BaseYamlSubstitution):
         pipeline_planning_yaml = load_yaml(parameter_file)
         pipeline_planning_yaml = pipeline_planning_yaml if pipeline_planning_yaml else {}
 
-        if add_gripper:
+        if robot_type != 'lite' and add_gripper:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
                 if gripper_planning_yaml:
                     pipeline_planning_yaml.update(gripper_planning_yaml)
-        elif add_bio_gripper:
+        elif robot_type != 'lite' and add_bio_gripper:
             parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
@@ -255,13 +255,13 @@ class DualPlanningPipelinesYAML(BaseYamlSubstitution):
 
         planning_yaml_1 = load_yaml(file_path_1)
         planning_yaml_1 = planning_yaml_1 if planning_yaml_1 else {}
-        if add_gripper_1:
+        if robot_type_1 != 'lite' and add_gripper_1:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
                 if gripper_planning_yaml:
                     planning_yaml_1.update(gripper_planning_yaml)
-        elif add_bio_gripper_1:
+        elif robot_type_1 != 'lite' and add_bio_gripper_1:
             parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
@@ -274,13 +274,13 @@ class DualPlanningPipelinesYAML(BaseYamlSubstitution):
         
         planning_yaml_2 = load_yaml(file_path_2)
         planning_yaml_2 = planning_yaml_2 if planning_yaml_2 else {}
-        if add_gripper_2:
+        if robot_type_2 != 'lite' and add_gripper_2:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
                 if gripper_planning_yaml:
                     planning_yaml_2.update(gripper_planning_yaml)
-        elif add_bio_gripper_2:
+        elif robot_type_2 != 'lite' and add_bio_gripper_2:
             parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
