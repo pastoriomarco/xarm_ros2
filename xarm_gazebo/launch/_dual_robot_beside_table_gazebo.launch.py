@@ -8,8 +8,8 @@
 
 import os
 import yaml
+from pathlib import Path
 from ament_index_python import get_package_share_directory
-from launch.launch_description_sources import load_python_launch_file_as_module
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, RegisterEventHandler
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -19,6 +19,7 @@ from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.actions import OpaqueFunction
+from uf_ros_lib.uf_robot_utils import get_xacro_content, generate_dual_ros2_control_params_temp_file
 
     
 def launch_setup(context, *args, **kwargs):
@@ -128,9 +129,6 @@ def launch_setup(context, *args, **kwargs):
 
     if not moveit_config_dict:
         # ros2 control params
-        # xarm_controller/launch/lib/robot_controller_lib.py
-        mod = load_python_launch_file_as_module(os.path.join(get_package_share_directory('xarm_controller'), 'launch', 'lib', 'robot_controller_lib.py'))
-        generate_dual_ros2_control_params_temp_file = getattr(mod, 'generate_dual_ros2_control_params_temp_file')
         ros2_control_params = generate_dual_ros2_control_params_temp_file(
             os.path.join(get_package_share_directory('xarm_controller'), 'config', '{}_controllers.yaml'.format(xarm_type_1)),
             os.path.join(get_package_share_directory('xarm_controller'), 'config', '{}_controllers.yaml'.format(xarm_type_2)),
@@ -147,67 +145,63 @@ def launch_setup(context, *args, **kwargs):
         )
 
         # robot_description
-        # xarm_description/launch/lib/robot_description_lib.py
-        mod = load_python_launch_file_as_module(os.path.join(get_package_share_directory('xarm_description'), 'launch', 'lib', 'robot_description_lib.py'))
-        get_xacro_file_content = getattr(mod, 'get_xacro_file_content')
         robot_description = {
-            'robot_description': get_xacro_file_content(
-                xacro_file=PathJoinSubstitution([FindPackageShare('xarm_description'), 'urdf', 'dual_xarm_device.urdf.xacro']), 
-                arguments={
-                    'prefix_1': prefix_1,
-                    'prefix_2': prefix_2,
-                    'dof_1': dof_1,
-                    'dof_2': dof_2,
-                    'robot_type_1': robot_type_1,
-                    'robot_type_2': robot_type_2,
-                    'add_gripper_1': add_gripper_1,
-                    'add_gripper_2': add_gripper_2,
-                    'add_vacuum_gripper_1': add_vacuum_gripper_1,
-                    'add_vacuum_gripper_2': add_vacuum_gripper_2,
-                    'add_bio_gripper_1': add_bio_gripper_1,
-                    'add_bio_gripper_2': add_bio_gripper_2,
-                    'hw_ns': hw_ns.perform(context).strip('/'),
-                    'limited': limited,
-                    'effort_control': effort_control,
-                    'velocity_control': velocity_control,
-                    'ros2_control_plugin': ros2_control_plugin,
-                    'ros2_control_params': ros2_control_params,
-                    'add_realsense_d435i_1': add_realsense_d435i_1,
-                    'add_realsense_d435i_2': add_realsense_d435i_2,
-                    'add_d435i_links_1': add_d435i_links_1,
-                    'add_d435i_links_2': add_d435i_links_2,
-                    'model1300_1': model1300_1,
-                    'model1300_2': model1300_2,
-                    'robot_sn_1': robot_sn_1,
-                    'robot_sn_2': robot_sn_2,
-                    'add_other_geometry_1': add_other_geometry_1,
-                    'add_other_geometry_2': add_other_geometry_2,
-                    'geometry_type_1': geometry_type_1,
-                    'geometry_type_2': geometry_type_2,
-                    'geometry_mass_1': geometry_mass_1,
-                    'geometry_mass_2': geometry_mass_2,
-                    'geometry_height_1': geometry_height_1,
-                    'geometry_height_2': geometry_height_2,
-                    'geometry_radius_1': geometry_radius_1,
-                    'geometry_radius_2': geometry_radius_2,
-                    'geometry_length_1': geometry_length_1,
-                    'geometry_length_2': geometry_length_2,
-                    'geometry_width_1': geometry_width_1,
-                    'geometry_width_2': geometry_width_2,
-                    'geometry_mesh_filename_1': geometry_mesh_filename_1,
-                    'geometry_mesh_filename_2': geometry_mesh_filename_2,
-                    'geometry_mesh_origin_xyz_1': geometry_mesh_origin_xyz_1,
-                    'geometry_mesh_origin_xyz_2': geometry_mesh_origin_xyz_2,
-                    'geometry_mesh_origin_rpy_1': geometry_mesh_origin_rpy_1,
-                    'geometry_mesh_origin_rpy_2': geometry_mesh_origin_rpy_2,
-                    'geometry_mesh_tcp_xyz_1': geometry_mesh_tcp_xyz_1,
-                    'geometry_mesh_tcp_xyz_2': geometry_mesh_tcp_xyz_2,
-                    'geometry_mesh_tcp_rpy_1': geometry_mesh_tcp_rpy_1,
-                    'geometry_mesh_tcp_rpy_2': geometry_mesh_tcp_rpy_2,
-                    'kinematics_suffix_1': kinematics_suffix_1,
-                    'kinematics_suffix_2': kinematics_suffix_2,
-                }
-            ),
+            'robot_description': get_xacro_content(
+                context,
+                xacro_file=Path(get_package_share_directory('xarm_description')) / 'urdf' / 'dual_xarm_device.urdf.xacro',
+                dof_1=dof_1,
+                dof_2=dof_2,
+                robot_type_1=robot_type_1,
+                robot_type_2=robot_type_2,
+                prefix_1=prefix_1,
+                prefix_2=prefix_2,
+                hw_ns=hw_ns,
+                limited=limited,
+                effort_control=effort_control,
+                velocity_control=velocity_control,
+                model1300_1=model1300_1,
+                model1300_2=model1300_2,
+                robot_sn_1=robot_sn_1,
+                robot_sn_2=robot_sn_2,
+                kinematics_suffix_1=kinematics_suffix_1,
+                kinematics_suffix_2=kinematics_suffix_2,
+                ros2_control_plugin=ros2_control_plugin,
+                ros2_control_params=ros2_control_params,
+                add_gripper_1=add_gripper_1,
+                add_gripper_2=add_gripper_2,
+                add_vacuum_gripper_1=add_vacuum_gripper_1,
+                add_vacuum_gripper_2=add_vacuum_gripper_2,
+                add_bio_gripper_1=add_bio_gripper_1,
+                add_bio_gripper_2=add_bio_gripper_2,
+                add_realsense_d435i_1=add_realsense_d435i_1,
+                add_realsense_d435i_2=add_realsense_d435i_2,
+                add_d435i_links_1=add_d435i_links_1,
+                add_d435i_links_2=add_d435i_links_2,
+                add_other_geometry_1=add_other_geometry_1,
+                add_other_geometry_2=add_other_geometry_2,
+                geometry_type_1=geometry_type_1,
+                geometry_type_2=geometry_type_2,
+                geometry_mass_1=geometry_mass_1,
+                geometry_mass_2=geometry_mass_2,
+                geometry_height_1=geometry_height_1,
+                geometry_height_2=geometry_height_2,
+                geometry_radius_1=geometry_radius_1,
+                geometry_radius_2=geometry_radius_2,
+                geometry_length_1=geometry_length_1,
+                geometry_length_2=geometry_length_2,
+                geometry_width_1=geometry_width_1,
+                geometry_width_2=geometry_width_2,
+                geometry_mesh_filename_1=geometry_mesh_filename_1,
+                geometry_mesh_filename_2=geometry_mesh_filename_2,
+                geometry_mesh_origin_xyz_1=geometry_mesh_origin_xyz_1,
+                geometry_mesh_origin_xyz_2=geometry_mesh_origin_xyz_2,
+                geometry_mesh_origin_rpy_1=geometry_mesh_origin_rpy_1,
+                geometry_mesh_origin_rpy_2=geometry_mesh_origin_rpy_2,
+                geometry_mesh_tcp_xyz_1=geometry_mesh_tcp_xyz_1,
+                geometry_mesh_tcp_xyz_2=geometry_mesh_tcp_xyz_2,
+                geometry_mesh_tcp_rpy_1=geometry_mesh_tcp_rpy_1,
+                geometry_mesh_tcp_rpy_2=geometry_mesh_tcp_rpy_2,
+            )
         }
         moveit_config_dict = robot_description
     else:

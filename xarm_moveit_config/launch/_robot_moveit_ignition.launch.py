@@ -65,6 +65,7 @@ def launch_setup(context, *args, **kwargs):
         add_bio_gripper=add_bio_gripper.perform(context) in ('True', 'true'),
         ros_namespace=ros_namespace,
         update_rate=1000,
+        use_sim_time=True,
         robot_type=robot_type.perform(context)
     )
 
