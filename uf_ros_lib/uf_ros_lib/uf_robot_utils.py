@@ -13,6 +13,8 @@ from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from tempfile import NamedTemporaryFile
 from ament_index_python import get_package_share_directory
+from launch.substitutions import LaunchConfiguration
+from launch_param_builder import load_xacro
 
 
 def get_xacro_command(
@@ -32,6 +34,68 @@ def get_xacro_command(
                 ' '
             ])
     return Command(command)
+
+
+def get_xacro_content(context,
+    xacro_file=Path(get_package_share_directory('xarm_description')) / 'urdf' / 'xarm_device.urdf.xacro', 
+    **kwargs):
+    xacro_file = Path(xacro_file.perform(context)) if isinstance(xacro_file, LaunchConfiguration) else Path(xacro_file) if isinstance(xacro_file, str) else xacro_file
+    
+    def get_param_str(param):
+        val = param if isinstance(param, str) else 'false' if param == False else 'true' if param == True else (param.perform(context) if context is not None else param) if isinstance(param, LaunchConfiguration) else str(param)
+        return val if not val else val[1:-1] if isinstance(val, str) and val[0] in ['"', '\''] and val[-1] in ['"', '\''] else val
+
+    mappings = {}
+    for k, v in kwargs.items():
+        mappings[k] = get_param_str(v)
+    return load_xacro(xacro_file, mappings=mappings)
+
+
+def merge_dict(dict1, dict2):
+    for k, v in dict1.items():
+        try:
+            if k not in dict2:
+                continue
+            if isinstance(v, dict):
+                merge_dict(v, dict2[k])
+            else:
+                dict1[k] = dict2[k]
+        except Exception as e:
+            pass
+
+
+def load_abspath_yaml(path):
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as file:
+                return yaml.safe_load(file)
+        except Exception as e:
+            print('load {} error, {}'.format(path, e))
+    return {}
+
+
+def generate_robot_api_params(robot_default_params_path, robot_user_params_path=None, ros_namespace='', node_name='ufactory_driver'):
+    if not os.path.exists(robot_user_params_path):
+        robot_user_params_path = None
+    if ros_namespace or (robot_user_params_path is not None and robot_default_params_path != robot_user_params_path):
+        ros2_control_params_yaml = load_abspath_yaml(robot_default_params_path)
+        ros2_control_user_params_yaml = load_abspath_yaml(robot_user_params_path)
+        # change xarm_driver to ufactory_driver
+        if 'xarm_driver' in ros2_control_params_yaml and node_name not in ros2_control_params_yaml:
+            ros2_control_params_yaml[node_name] = ros2_control_params_yaml.pop('xarm_driver')
+        if 'xarm_driver' in ros2_control_user_params_yaml and node_name not in ros2_control_user_params_yaml:
+            ros2_control_user_params_yaml[node_name] = ros2_control_user_params_yaml.pop('xarm_driver')
+        merge_dict(ros2_control_params_yaml, ros2_control_user_params_yaml)
+        if ros_namespace:
+            xarm_params_yaml = {
+                ros_namespace: ros2_control_params_yaml
+            }
+        else:
+            xarm_params_yaml = ros2_control_params_yaml
+        with NamedTemporaryFile(mode='w', prefix='launch_params_', delete=False) as h:
+            yaml.dump(xarm_params_yaml, h, default_flow_style=False)
+            return h.name
+    return robot_default_params_path
 
 
 def load_yaml(package_name, *file_path):
@@ -115,7 +179,7 @@ def generate_dual_ros2_control_params_temp_file(
     prefix_1='L_', prefix_2='R_', 
     add_gripper_1=False, add_gripper_2=False, 
     add_bio_gripper_1=False, add_bio_gripper_2=False, 
-    ros_namespace='', update_rate=None,
+    ros_namespace='', update_rate=None, use_sim_time=False,
     robot_type_1='xarm', robot_type_2='xarm'):
     with open(ros2_control_params_path_1, 'r') as f:
         ros2_control_params_yaml_1 = yaml.safe_load(f)
@@ -124,6 +188,9 @@ def generate_dual_ros2_control_params_temp_file(
     if update_rate is not None:
         ros2_control_params_yaml_1['controller_manager']['ros__parameters']['update_rate'] = update_rate
         ros2_control_params_yaml_2['controller_manager']['ros__parameters']['update_rate'] = update_rate
+    if use_sim_time:
+        ros2_control_params_yaml_1['controller_manager']['ros__parameters']['use_sim_time'] = True
+        ros2_control_params_yaml_2['controller_manager']['ros__parameters']['use_sim_time'] = True
 
     if add_gripper_1:
         gripper_control_params_path = os.path.join(get_package_share_directory('xarm_controller'), 'config', '{}_gripper_controllers.yaml'.format(robot_type_1))

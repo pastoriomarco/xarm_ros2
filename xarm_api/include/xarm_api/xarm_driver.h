@@ -84,6 +84,7 @@ namespace xarm_api
         int dof_;
         int joint_states_rate_;
         bool in_ros_control_;
+        int vacuum_gripper_hardware_version_;
         std::string report_type_;
         std::vector<std::string> joint_names_;
         sensor_msgs::msg::JointState joint_state_msg_;

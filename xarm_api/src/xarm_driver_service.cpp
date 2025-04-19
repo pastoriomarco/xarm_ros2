@@ -378,8 +378,8 @@ namespace xarm_api
 
     bool XArmDriver::_get_vacuum_gripper(const std::shared_ptr<xarm_msgs::srv::GetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::GetInt16::Response> res)
     {
-        res->ret = arm->get_vacuum_gripper((int *)&res->data);
-        res->message = "data=" + std::to_string(res->data);
+        res->ret = arm->get_vacuum_gripper((int *)&res->data, vacuum_gripper_hardware_version_ != 0 ? vacuum_gripper_hardware_version_ : 1);
+        res->message = "hardware_version=" + std::to_string(vacuum_gripper_hardware_version_) + ", data=" + std::to_string(res->data);
         return true;
     }
 
@@ -1150,7 +1150,12 @@ namespace xarm_api
 
     bool XArmDriver::_set_vacuum_gripper(const std::shared_ptr<xarm_msgs::srv::VacuumGripperCtrl::Request> req, std::shared_ptr<xarm_msgs::srv::VacuumGripperCtrl::Response> res)
     {
-        res->ret = arm->set_vacuum_gripper(req->on, req->wait, req->timeout, req->delay_sec);
+        if (req->hardware_version == 1 || req->hardware_version == 2) {
+            vacuum_gripper_hardware_version_ = req->hardware_version;
+        }
+        int hardware_version = req->hardware_version == 1 || req->hardware_version == 2 ? req->hardware_version : 1;
+        res->ret = arm->set_vacuum_gripper(req->on, req->wait, req->timeout, req->delay_sec, req->sync, hardware_version);
+        res->message = "hardware_version=" + std::to_string(vacuum_gripper_hardware_version_);
         return true;
     }
 

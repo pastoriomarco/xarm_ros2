@@ -148,6 +148,7 @@ namespace xarm_api
         curr_cmdnum = 0;
         arm = NULL;
         in_ros_control_ = in_ros_control;
+        vacuum_gripper_hardware_version_ = 0;
 
         node_ = node;
         std::string prefix = "";
