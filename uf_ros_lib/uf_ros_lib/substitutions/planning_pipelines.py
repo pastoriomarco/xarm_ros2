@@ -298,3 +298,161 @@ class DualPlanningPipelinesYAML(BaseYamlSubstitution):
             planning_yaml.update(load_yaml(parameter_file))
 
         return yaml.dump(planning_yaml)
+
+@expose_substitution("triple-planning-pipelines")
+class TriplePlanningPipelinesYAML(BaseYamlSubstitution):
+    def __init__(self, pipeline, package_path=None, config_folder=None,
+                 prefix_1='L_', prefix_2='M_', prefix_3='R_',
+                 robot_type_1='xarm', robot_type_2='xarm', robot_type_3='xarm',
+                 robot_dof_1=7, robot_dof_2=7, robot_dof_3=7,
+                 add_gripper_1=False, add_gripper_2=False, add_gripper_3=False,
+                 add_bio_gripper_1=False, add_bio_gripper_2=False, add_bio_gripper_3=False):
+        super().__init__()
+        self.__pipeline = pipeline
+        self.__package_path = package_path
+        self.__config_folder = config_folder
+        self.__prefix_1 = prefix_1
+        self.__prefix_2 = prefix_2
+        self.__prefix_3 = prefix_3
+        self.__robot_type_1 = robot_type_1
+        self.__robot_type_2 = robot_type_2
+        self.__robot_type_3 = robot_type_3
+        self.__robot_dof_1 = robot_dof_1
+        self.__robot_dof_2 = robot_dof_2
+        self.__robot_dof_3 = robot_dof_3
+        self.__add_gripper_1 = add_gripper_1
+        self.__add_gripper_2 = add_gripper_2
+        self.__add_gripper_3 = add_gripper_3
+        self.__add_bio_gripper_1 = add_bio_gripper_1
+        self.__add_bio_gripper_2 = add_bio_gripper_2
+        self.__add_bio_gripper_3 = add_bio_gripper_3
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 1:
+            raise TypeError('TriplePlanningPipelinesYAML substitution expects 1 argument')
+        kwargs = {"pipeline": data[0]}
+        return cls, kwargs
+
+    def describe(self):
+        return 'TriplePlanningPipelinesYAML(pipeline={}, package_path={}, prefix_1={}, prefix_2={}, prefix_3={}, robot_type_1={}, robot_type_2={}, robot_type_3={}, robot_dof_1={}, robot_dof_2={}, robot_dof_3={}, add_gripper_1={}, add_gripper_2={}, add_gripper_3={}, add_bio_gripper_1={}, add_bio_gripper_2={}, add_bio_gripper_3={})'.format(
+            self.get_var_describe(self.__pipeline),
+            self.get_var_describe(self.__package_path),
+            self.get_var_describe(self.__prefix_1),
+            self.get_var_describe(self.__prefix_2),
+            self.get_var_describe(self.__prefix_3),
+            self.get_var_describe(self.__robot_type_1),
+            self.get_var_describe(self.__robot_type_2),
+            self.get_var_describe(self.__robot_type_3),
+            self.get_var_describe(self.__robot_dof_1),
+            self.get_var_describe(self.__robot_dof_2),
+            self.get_var_describe(self.__robot_dof_3),
+            self.get_var_describe(self.__add_gripper_1),
+            self.get_var_describe(self.__add_gripper_2),
+            self.get_var_describe(self.__add_gripper_3),
+            self.get_var_describe(self.__add_bio_gripper_1),
+            self.get_var_describe(self.__add_bio_gripper_2),
+            self.get_var_describe(self.__add_bio_gripper_3)
+        )
+
+    def perform(self, context):
+        pipeline = self.get_var_perform(self.__pipeline, context)
+        prefix_1 = self.get_var_perform(self.__prefix_1, context)
+        prefix_2 = self.get_var_perform(self.__prefix_2, context)
+        prefix_3 = self.get_var_perform(self.__prefix_3, context)
+        robot_type_1 = self.get_var_perform(self.__robot_type_1, context)
+        robot_type_2 = self.get_var_perform(self.__robot_type_2, context)
+        robot_type_3 = self.get_var_perform(self.__robot_type_3, context)
+        robot_dof_1 = self.get_var_perform(self.__robot_dof_1, context)
+        robot_dof_2 = self.get_var_perform(self.__robot_dof_2, context)
+        robot_dof_3 = self.get_var_perform(self.__robot_dof_3, context)
+        add_gripper_1 = self.get_var_perform(self.__add_gripper_1, context).lower() == 'true'
+        add_gripper_2 = self.get_var_perform(self.__add_gripper_2, context).lower() == 'true'
+        add_gripper_3 = self.get_var_perform(self.__add_gripper_3, context).lower() == 'true'
+        add_bio_gripper_1 = self.get_var_perform(self.__add_bio_gripper_1, context).lower() == 'true'
+        add_bio_gripper_2 = self.get_var_perform(self.__add_bio_gripper_2, context).lower() == 'true'
+        add_bio_gripper_3 = self.get_var_perform(self.__add_bio_gripper_3, context).lower() == 'true'
+
+        robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')
+        robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')
+        robot_name_3 = '{}{}'.format(robot_type_3, robot_dof_3 if robot_type_3 == 'xarm' else '6' if robot_type_3 == 'lite' else '')
+        
+        filename = pipeline + '_planning.yaml'
+        if self.__config_folder is None:
+            file_path_1 = self.__package_path / 'config' / robot_name_1 / filename
+            file_path_2 = self.__package_path / 'config' / robot_name_2 / filename
+            file_path_3 = self.__package_path / 'config' / robot_name_3 / filename
+        else:
+            file_path_1 = self.__package_path / self.__config_folder / filename
+            file_path_2 = self.__package_path / self.__config_folder / filename
+            file_path_3 = self.__package_path / self.__config_folder / filename
+
+        default_config_folder = self.__package_path / 'config' / 'moveit_configs'
+        default_file = default_config_folder / filename
+        if default_file.exists():
+            planning_yaml = load_yaml(default_file) or {}
+        else:
+            planning_yaml = {}
+
+        planning_yaml_1 = load_yaml(file_path_1) or {}
+        if add_gripper_1:
+            parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_1.update(gripper_planning_yaml)
+        elif add_bio_gripper_1:
+            parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_1.update(gripper_planning_yaml)
+        if planning_yaml_1 and prefix_1:
+            for name in list(planning_yaml_1.keys()):
+                if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
+                    planning_yaml_1['{}{}'.format(prefix_1, name)] = planning_yaml_1.pop(name)
+        
+        planning_yaml_2 = load_yaml(file_path_2) or {}
+        if add_gripper_2:
+            parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_2.update(gripper_planning_yaml)
+        elif add_bio_gripper_2:
+            parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_2.update(gripper_planning_yaml)
+        if planning_yaml_2 and prefix_2:
+            for name in list(planning_yaml_2.keys()):
+                if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
+                    planning_yaml_2['{}{}'.format(prefix_2, name)] = planning_yaml_2.pop(name)
+        
+        planning_yaml_3 = load_yaml(file_path_3) or {}
+        if add_gripper_3:
+            parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_3) / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_3.update(gripper_planning_yaml)
+        elif add_bio_gripper_3:
+            parameter_file = self.__package_path / 'config' / 'bio_gripper' / filename
+            if parameter_file.exists():
+                gripper_planning_yaml = load_yaml(parameter_file)
+                if gripper_planning_yaml:
+                    planning_yaml_3.update(gripper_planning_yaml)
+        if planning_yaml_3 and prefix_3:
+            for name in list(planning_yaml_3.keys()):
+                if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
+                    planning_yaml_3['{}{}'.format(prefix_3, name)] = planning_yaml_3.pop(name)
+        
+        planning_yaml.update(planning_yaml_1)
+        planning_yaml.update(planning_yaml_2)
+        planning_yaml.update(planning_yaml_3)
+        if pipeline == 'ompl' and 'planner_configs' not in planning_yaml:
+            parameter_file = default_config_folder / 'ompl_defaults.yaml'
+            planning_yaml.update(load_yaml(parameter_file))
+        
+        return yaml.dump(planning_yaml)

@@ -184,3 +184,129 @@ class DualJointLimitsYAML(BaseYamlSubstitution):
         joint_limits['joint_limits'].update(joint_limits_2['joint_limits'])
 
         return yaml.dump(joint_limits)
+
+@expose_substitution("triple-joint-limits")
+class TripleJointLimitsYAML(BaseYamlSubstitution):
+    def __init__(self, file_path, package_path=None,
+                 prefix_1='L_', prefix_2='M_', prefix_3='R_',
+                 robot_type_1='xarm', robot_type_2='xarm', robot_type_3='xarm',
+                 robot_dof_1=7, robot_dof_2=7, robot_dof_3=7,
+                 add_gripper_1=False, add_gripper_2=False, add_gripper_3=False,
+                 add_bio_gripper_1=False, add_bio_gripper_2=False, add_bio_gripper_3=False):
+        super().__init__()
+        self.__package_path = package_path
+        self.__file_path = file_path
+        self.__prefix_1 = prefix_1
+        self.__prefix_2 = prefix_2
+        self.__prefix_3 = prefix_3
+        self.__robot_type_1 = robot_type_1
+        self.__robot_type_2 = robot_type_2
+        self.__robot_type_3 = robot_type_3
+        self.__robot_dof_1 = robot_dof_1
+        self.__robot_dof_2 = robot_dof_2
+        self.__robot_dof_3 = robot_dof_3
+        self.__add_gripper_1 = add_gripper_1
+        self.__add_gripper_2 = add_gripper_2
+        self.__add_gripper_3 = add_gripper_3
+        self.__add_bio_gripper_1 = add_bio_gripper_1
+        self.__add_bio_gripper_2 = add_bio_gripper_2
+        self.__add_bio_gripper_3 = add_bio_gripper_3
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 1:
+            raise TypeError('TripleJointLimitsYAML substitution expects 1 argument')
+        kwargs = {"file_path": data[0]}
+        return cls, kwargs
+
+    def describe(self):
+        return 'TripleJointLimitsYAML(file_path={}, package_path={}, prefix_1={}, prefix_2={}, prefix_3={}, robot_type_1={}, robot_type_2={}, robot_type_3={}, robot_dof_1={}, robot_dof_2={}, robot_dof_3={}, add_gripper_1={}, add_gripper_2={}, add_gripper_3={}, add_bio_gripper_1={}, add_bio_gripper_2={}, add_bio_gripper_3={})'.format(
+            self.get_var_describe(self.__file_path),
+            self.get_var_describe(self.__package_path),
+            self.get_var_describe(self.__prefix_1),
+            self.get_var_describe(self.__prefix_2),
+            self.get_var_describe(self.__prefix_3),
+            self.get_var_describe(self.__robot_type_1),
+            self.get_var_describe(self.__robot_type_2),
+            self.get_var_describe(self.__robot_type_3),
+            self.get_var_describe(self.__robot_dof_1),
+            self.get_var_describe(self.__robot_dof_2),
+            self.get_var_describe(self.__robot_dof_3),
+            self.get_var_describe(self.__add_gripper_1),
+            self.get_var_describe(self.__add_gripper_2),
+            self.get_var_describe(self.__add_gripper_3),
+            self.get_var_describe(self.__add_bio_gripper_1),
+            self.get_var_describe(self.__add_bio_gripper_2),
+            self.get_var_describe(self.__add_bio_gripper_3)
+        )
+
+    def perform(self, context):
+        prefix_1 = self.get_var_perform(self.__prefix_1, context)
+        prefix_2 = self.get_var_perform(self.__prefix_2, context)
+        prefix_3 = self.get_var_perform(self.__prefix_3, context)
+        robot_type_1 = self.get_var_perform(self.__robot_type_1, context)
+        robot_type_2 = self.get_var_perform(self.__robot_type_2, context)
+        robot_type_3 = self.get_var_perform(self.__robot_type_3, context)
+        robot_dof_1 = self.get_var_perform(self.__robot_dof_1, context)
+        robot_dof_2 = self.get_var_perform(self.__robot_dof_2, context)
+        robot_dof_3 = self.get_var_perform(self.__robot_dof_3, context)
+        add_gripper_1 = self.get_var_perform(self.__add_gripper_1, context).lower() == 'true'
+        add_gripper_2 = self.get_var_perform(self.__add_gripper_2, context).lower() == 'true'
+        add_gripper_3 = self.get_var_perform(self.__add_gripper_3, context).lower() == 'true'
+        add_bio_gripper_1 = self.get_var_perform(self.__add_bio_gripper_1, context).lower() == 'true'
+        add_bio_gripper_2 = self.get_var_perform(self.__add_bio_gripper_2, context).lower() == 'true'
+        add_bio_gripper_3 = self.get_var_perform(self.__add_bio_gripper_3, context).lower() == 'true'
+        
+        robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')
+        robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')
+        robot_name_3 = '{}{}'.format(robot_type_3, robot_dof_3 if robot_type_3 == 'xarm' else '6' if robot_type_3 == 'lite' else '')
+        
+        file_path_1 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_1 / 'joint_limits.yaml')
+        file_path_2 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_2 / 'joint_limits.yaml')
+        file_path_3 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_3 / 'joint_limits.yaml')
+        
+        joint_limits_1 = load_yaml(file_path_1) or {}
+        if robot_type_1 != 'lite' and add_gripper_1:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_1['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        elif robot_type_1 != 'lite' and add_bio_gripper_1:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / 'bio_gripper' / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_1['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        if prefix_1:
+            for name in list(joint_limits_1['joint_limits']):
+                joint_limits_1['joint_limits']['{}{}'.format(prefix_1, name)] = joint_limits_1['joint_limits'].pop(name)
+        
+        joint_limits_2 = load_yaml(file_path_2) or {}
+        if robot_type_2 != 'lite' and add_gripper_2:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_2['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        elif robot_type_2 != 'lite' and add_bio_gripper_2:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / 'bio_gripper' / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_2['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        if prefix_2:
+            for name in list(joint_limits_2['joint_limits']):
+                joint_limits_2['joint_limits']['{}{}'.format(prefix_2, name)] = joint_limits_2['joint_limits'].pop(name)
+        
+        joint_limits_3 = load_yaml(file_path_3) or {}
+        if robot_type_3 != 'lite' and add_gripper_3:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_3) / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_3['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        elif robot_type_3 != 'lite' and add_bio_gripper_3:
+            gripper_joint_limits_yaml = load_yaml(self.__package_path / 'config' / 'bio_gripper' / 'joint_limits.yaml')
+            if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
+                joint_limits_3['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
+        if prefix_3:
+            for name in list(joint_limits_3['joint_limits']):
+                joint_limits_3['joint_limits']['{}{}'.format(prefix_3, name)] = joint_limits_3['joint_limits'].pop(name)
+        
+        joint_limits = {'joint_limits': {}}
+        joint_limits['joint_limits'].update(joint_limits_1['joint_limits'])
+        joint_limits['joint_limits'].update(joint_limits_2['joint_limits'])
+        joint_limits['joint_limits'].update(joint_limits_3['joint_limits'])
+        
+        return yaml.dump(joint_limits)

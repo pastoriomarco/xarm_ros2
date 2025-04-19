@@ -113,8 +113,8 @@ class DualCommonYAML(BaseYamlSubstitution):
         robot_dof_2 = self.get_var_perform(self.__robot_dof_2, context)
         filename = self.get_var_perform(self.__file_name, context)
 
-        robot_name = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')        
-        robot_name = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')        
+        robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')        
+        robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')        
         file_path_1 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_1 / filename)
         file_path_2 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_2 / filename)
         
@@ -131,4 +131,65 @@ class DualCommonYAML(BaseYamlSubstitution):
         default_yaml.update(yaml_1)
         default_yaml.update(yaml_2)
 
+        return yaml.dump(default_yaml)
+    
+@expose_substitution("triple-common-yaml")
+class TripleCommonYAML(BaseYamlSubstitution):
+    def __init__(self, file_name, package_path=None,
+                 robot_type_1='xarm', robot_type_2='xarm', robot_type_3='xarm',
+                 robot_dof_1=7, robot_dof_2=7, robot_dof_3=7):
+        super().__init__()
+        self.__file_name = file_name
+        self.__package_path = package_path
+        self.__robot_type_1 = robot_type_1
+        self.__robot_type_2 = robot_type_2
+        self.__robot_type_3 = robot_type_3
+        self.__robot_dof_1 = robot_dof_1
+        self.__robot_dof_2 = robot_dof_2
+        self.__robot_dof_3 = robot_dof_3
+
+    @classmethod
+    def parse(cls, data):
+        if len(data) != 1:
+            raise TypeError('TripleCommonYAML substitution expects 1 argument')
+        kwargs = {"file_name": data[0]}
+        return cls, kwargs
+
+    def describe(self):
+        return 'TripleCommonYAML(file_name={}, package_path={}, robot_type_1={}, robot_type_2={}, robot_type_3={}, robot_dof_1={}, robot_dof_2={}, robot_dof_3={})'.format(
+            self.get_var_describe(self.__file_name),
+            self.get_var_describe(self.__package_path),
+            self.get_var_describe(self.__robot_type_1),
+            self.get_var_describe(self.__robot_type_2),
+            self.get_var_describe(self.__robot_type_3),
+            self.get_var_describe(self.__robot_dof_1),
+            self.get_var_describe(self.__robot_dof_2),
+            self.get_var_describe(self.__robot_dof_3)
+        )
+
+    def perform(self, context):
+        robot_type_1 = self.get_var_perform(self.__robot_type_1, context)
+        robot_type_2 = self.get_var_perform(self.__robot_type_2, context)
+        robot_type_3 = self.get_var_perform(self.__robot_type_3, context)
+        robot_dof_1 = self.get_var_perform(self.__robot_dof_1, context)
+        robot_dof_2 = self.get_var_perform(self.__robot_dof_2, context)
+        robot_dof_3 = self.get_var_perform(self.__robot_dof_3, context)
+        filename = self.get_var_perform(self.__file_name, context)
+
+        robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')
+        robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')
+        robot_name_3 = '{}{}'.format(robot_type_3, robot_dof_3 if robot_type_3 == 'xarm' else '6' if robot_type_3 == 'lite' else '')
+
+        file_path_1 = self.__package_path / 'config' / robot_name_1 / filename
+        file_path_2 = self.__package_path / 'config' / robot_name_2 / filename
+        file_path_3 = self.__package_path / 'config' / robot_name_3 / filename
+
+        default_file = self.__package_path / 'config' / 'moveit_configs' / filename
+        default_yaml = load_yaml(default_file) if default_file.exists() else {}
+        yaml_1 = load_yaml(file_path_1) or {}
+        yaml_2 = load_yaml(file_path_2) or {}
+        yaml_3 = load_yaml(file_path_3) or {}
+        default_yaml.update(yaml_1)
+        default_yaml.update(yaml_2)
+        default_yaml.update(yaml_3)
         return yaml.dump(default_yaml)
