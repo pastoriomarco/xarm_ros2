@@ -14,6 +14,7 @@
 #include <control_msgs/msg/joint_jog.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <moveit_msgs/msg/planning_scene.hpp>
+#include <moveit_msgs/srv/servo_command_type.hpp>
 
 
 class KeyboardReader
@@ -61,14 +62,18 @@ private:
     template <typename T>
     void _declare_or_get_param(T& output_value, const std::string& param_name, const T default_value = T{});
     void spin();
+    void _switch_command_type(int command_type);
 
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
     rclcpp::Publisher<control_msgs::msg::JointJog>::SharedPtr joint_pub_;
     rclcpp::Publisher<moveit_msgs::msg::PlanningScene>::SharedPtr collision_pub_;
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr servo_start_client_;
+    rclcpp::Client<moveit_msgs::srv::ServoCommandType>::SharedPtr switch_input_;
+    std::shared_ptr<moveit_msgs::srv::ServoCommandType::Request> switch_request_;
 
     int dof_;
     int ros_queue_size_;
+    int command_type_;
 
     std::string cartesian_command_in_topic_;
     std::string joint_command_in_topic_;

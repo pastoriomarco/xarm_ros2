@@ -101,6 +101,19 @@ JoyToServoPub::JoyToServoPub(const rclcpp::NodeOptions& options)
         joint_command_in_topic_ = "/servo_server/" + joint_command_in_topic_.substr(2, joint_command_in_topic_.length());
     }
 
+    node_ = rclcpp::Node::make_shared("joystick_client_node", options);
+
+    // Create a service client to start the ServoServer
+    servo_start_client_ = node_->create_client<std_srvs::srv::Trigger>("/servo_server/start_servo");
+    servo_start_client_->wait_for_service(std::chrono::seconds(1));
+    servo_start_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+
+    // Client for switching input types
+    switch_input_ = node_->create_client<moveit_msgs::srv::ServoCommandType>("/servo_server/switch_command_type");
+    servo_start_client_->wait_for_service(std::chrono::seconds(2));
+    command_type_ = -1;
+    switch_request_ = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
+
     // Setup pub/sub
     joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(joy_topic_, ros_queue_size_, std::bind(&JoyToServoPub::_joy_callback, this, std::placeholders::_1));
 
@@ -108,10 +121,7 @@ JoyToServoPub::JoyToServoPub(const rclcpp::NodeOptions& options)
     joint_pub_ = this->create_publisher<control_msgs::msg::JointJog>(joint_command_in_topic_, ros_queue_size_);
     // collision_pub_ = this->create_publisher<moveit_msgs::msg::PlanningScene>("/planning_scene", 10);
 
-    // Create a service client to start the ServoServer
-    servo_start_client_ = this->create_client<std_srvs::srv::Trigger>("/servo_server/start_servo");
-    servo_start_client_->wait_for_service(std::chrono::seconds(1));
-    servo_start_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+
 }
 
 template <typename T>
@@ -223,6 +233,105 @@ bool JoyToServoPub::_convert_xbox360_joy_to_cmd(
     return true;
 }
 
+void JoyToServoPub::_switch_command_type(int command_type)
+{
+    if (command_type == command_type_) return;
+    switch (command_type) {
+        case 0:
+        {
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::JOINT_JOG;
+            // auto result = switch_input_->async_send_request(switch_request_);
+            // if (result.get()->success)
+            // {
+            //     command_type_ = command_type;
+            //     RCLCPP_INFO_STREAM(this->get_logger(), "Switched to input type: JOINT_JOG");
+            // }
+            // else
+            // {
+            //     RCLCPP_WARN_STREAM(this->get_logger(), "Could not switch input to: JOINT_JOG");
+            // }
+
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::JOINT_JOG;
+            auto result_future = switch_input_->async_send_request(switch_request_);
+            if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+                auto result = result_future.get();
+                if (result->success) {
+                    command_type_ = command_type;
+                    RCLCPP_INFO(node_->get_logger(), "Switched to input type: JOINT_JOG");
+                } else {
+                    RCLCPP_WARN(node_->get_logger(), "Could not switch input to: JOINT_JOG");
+                }
+            }
+            else {
+                RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            }
+            break;
+        }
+        case 1:
+        {
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::TWIST;
+            // auto result = switch_input_->async_send_request(switch_request_);
+            // if (result.get()->success)
+            // {
+            //     command_type_ = command_type;
+            //     RCLCPP_INFO_STREAM(this->get_logger(), "Switched to input type: TWIST");
+            // }
+            // else
+            // {
+            //     RCLCPP_WARN_STREAM(this->get_logger(), "Could not switch input to: TWIST");
+            // }
+
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::TWIST;
+            auto result_future = switch_input_->async_send_request(switch_request_);
+            if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+                auto result = result_future.get();
+                if (result->success) {
+                    command_type_ = command_type;
+                    RCLCPP_INFO(node_->get_logger(), "Switched to input type: TWIST");
+                } else {
+                    RCLCPP_WARN(node_->get_logger(), "Could not switch input to: TWIST");
+                }
+            }
+            else {
+                RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            }
+            break;
+        }
+        case 2:
+        {
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::POSE;
+            // auto result = switch_input_->async_send_request(switch_request_);
+            // if (result.get()->success)
+            // {
+            //     command_type_ = command_type;
+            //     RCLCPP_INFO_STREAM(node_->get_logger(), "Switched to input type: POSE");
+            // }
+            // else
+            // {
+            //     RCLCPP_WARN_STREAM(node_->get_logger(), "Could not switch input to: POSE");
+            // }
+
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::POSE;
+            auto result_future = switch_input_->async_send_request(switch_request_);
+            if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+                auto result = result_future.get();
+                if (result->success) {
+                    command_type_ = command_type;
+                    RCLCPP_INFO(node_->get_logger(), "Switched to input type: POSE");
+                } else {
+                    RCLCPP_WARN(node_->get_logger(), "Could not switch input to: POSE");
+                }
+            }
+            else {
+                RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 bool JoyToServoPub::_convert_spacemouse_wireless_joy_to_cmd(const std::vector<float>& axes, const std::vector<int>& buttons,
     std::unique_ptr<geometry_msgs::msg::TwistStamped>& twist)
 {
@@ -263,6 +372,8 @@ void JoyToServoPub::_joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     auto joint_msg = std::make_unique<control_msgs::msg::JointJog>();
 
     if (dof_ == 7 && initialized_status_) {
+        _switch_command_type(0);
+
         initialized_status_ -= 1;
         joint_msg->joint_names.push_back("joint1");
         joint_msg->velocities.push_back(initialized_status_ > 0 ? 0.01 : 0);
@@ -291,7 +402,9 @@ void JoyToServoPub::_joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         default:
             return;
     }
+
     if (pub_twist) {
+        _switch_command_type(1);
         // publish the TwistStamped
         _filter_twist_msg(twist_msg, 0.2);
         // RCLCPP_INFO(this->get_logger(), "linear=[%f, %f, %f], angular=[%f, %f, %f]", 
@@ -302,6 +415,7 @@ void JoyToServoPub::_joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         twist_pub_->publish(std::move(twist_msg));
     }
     else {
+        _switch_command_type(0);
         // publish the JointJog
         joint_msg->header.stamp = this->now();
         joint_msg->header.frame_id = "joint";

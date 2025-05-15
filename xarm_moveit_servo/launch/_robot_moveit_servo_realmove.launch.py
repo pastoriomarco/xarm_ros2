@@ -229,20 +229,20 @@ def launch_setup(context, *args, **kwargs):
                 ],
                 # extra_arguments=[{'use_intra_process_comms': True}],
             ),
-            ComposableNode(
-                package='xarm_moveit_servo',
-                plugin='xarm_moveit_servo::JoyToServoPub',
-                name='joy_to_servo_node',
-                parameters=[
-                    servo_params,
-                    {
-                        'dof': dof, 
-                        'ros_queue_size': 10,
-                        'joystick_type': joystick_type,
-                    },
-                ],
-                # extra_arguments=[{'use_intra_process_comms': True}],
-            ),
+            # ComposableNode(
+            #     package='xarm_moveit_servo',
+            #     plugin='xarm_moveit_servo::JoyToServoPub',
+            #     name='joy_to_servo_node',
+            #     parameters=[
+            #         servo_params,
+            #         {
+            #             'dof': dof, 
+            #             'ros_queue_size': 10,
+            #             'joystick_type': joystick_type,
+            #         },
+            #     ],
+            #     # extra_arguments=[{'use_intra_process_comms': True}],
+            # ),
             ComposableNode(
                 package='joy',
                 plugin='joy::Joy',
@@ -256,16 +256,33 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
     )
 
+    joystick_node = Node(
+        package="xarm_moveit_servo",
+        executable="xarm_joystick_input_node",
+        name="xarm_joystick_input_node",
+        parameters=[
+            servo_params,
+            {
+                'dof': dof, 
+                'ros_queue_size': 10,
+                'joystick_type': joystick_type,
+            },
+        ],
+        output="screen",
+    )
+
     return [
-        RegisterEventHandler(
-            event_handler=OnProcessExit(
-                target_action=traj_controller_node,
-                on_exit=container,
-            )
-        ),
+        # RegisterEventHandler(
+        #     event_handler=OnProcessExit(
+        #         target_action=traj_controller_node,
+        #         on_exit=container,
+        #     )
+        # ),
         rviz_node,
         joint_state_publisher_node,
         ros2_control_launch,
+        container,
+        joystick_node,
         traj_controller_node,
     ] + controller_nodes
 

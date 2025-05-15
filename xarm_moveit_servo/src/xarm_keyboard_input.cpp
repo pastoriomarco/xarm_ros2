@@ -69,6 +69,12 @@ linear_pos_cmd_(0.5)
     servo_start_client_ = node_->create_client<std_srvs::srv::Trigger>("/servo_server/start_servo");
     servo_start_client_->wait_for_service(std::chrono::seconds(1));
     servo_start_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+
+    // Client for switching input types
+    switch_input_ = node_->create_client<moveit_msgs::srv::ServoCommandType>("/servo_server/switch_command_type");
+    servo_start_client_->wait_for_service(std::chrono::seconds(2));
+    command_type_ = -1;
+    switch_request_ = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
     
     RCLCPP_INFO(node_->get_logger(), "\n*********dof=%d, ros_queue_size=%d\n", dof_, ros_queue_size_);
 }
@@ -105,6 +111,108 @@ void KeyboardServoPub::spin()
   }
 }
 
+void KeyboardServoPub::_switch_command_type(int command_type)
+{
+    if (command_type == command_type_) return;
+    switch (command_type) {
+        case 0:
+        {
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::JOINT_JOG;
+            auto result = switch_input_->async_send_request(switch_request_);
+            if (result.get()->success)
+            {
+                command_type_ = command_type;
+                RCLCPP_INFO_STREAM(node_->get_logger(), "Switched to input type: JOINT_JOG");
+            }
+            else
+            {
+                RCLCPP_WARN_STREAM(node_->get_logger(), "Could not switch input to: JOINT_JOG");
+            }
+
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::JOINT_JOG;
+            // auto result_future = switch_input_->async_send_request(switch_request_);
+            // RCLCPP_INFO_STREAM(node_->get_logger(), "11Switched to input type: JOINT_JOG");
+            // if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+            //     auto result = result_future.get();
+            //     if (result->success) {
+            //         command_type_ = command_type;
+            //         RCLCPP_INFO(node_->get_logger(), "Switched to input type: JOINT_JOG");
+            //     } else {
+            //         RCLCPP_WARN(node_->get_logger(), "Could not switch input to: JOINT_JOG");
+            //     }
+            // }
+            // else {
+            //     RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            // }
+            break;
+        }
+        case 1:
+        {
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::TWIST;
+            auto result = switch_input_->async_send_request(switch_request_);
+            if (result.get()->success)
+            {
+                command_type_ = command_type;
+                RCLCPP_INFO_STREAM(node_->get_logger(), "Switched to input type: TWIST");
+            }
+            else
+            {
+                RCLCPP_WARN_STREAM(node_->get_logger(), "Could not switch input to: TWIST");
+            }
+
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::TWIST;
+            // auto result_future = switch_input_->async_send_request(switch_request_);
+            // RCLCPP_INFO_STREAM(node_->get_logger(), "11Switched to input type: TWIST");
+            // if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+            //     auto result = result_future.get();
+            //     if (result->success) {
+            //         command_type_ = command_type;
+            //         RCLCPP_INFO(node_->get_logger(), "Switched to input type: TWIST");
+            //     } else {
+            //         RCLCPP_WARN(node_->get_logger(), "Could not switch input to: TWIST");
+            //     }
+            // }
+            // else {
+            //     RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            // }
+            break;
+        }
+        case 2:
+        {
+            switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::POSE;
+            auto result = switch_input_->async_send_request(switch_request_);
+            if (result.get()->success)
+            {
+                command_type_ = command_type;
+                RCLCPP_INFO_STREAM(node_->get_logger(), "Switched to input type: POSE");
+            }
+            else
+            {
+                RCLCPP_WARN_STREAM(node_->get_logger(), "Could not switch input to: POSE");
+            }
+
+            // switch_request_->command_type = moveit_msgs::srv::ServoCommandType::Request::POSE;
+            // auto result_future = switch_input_->async_send_request(switch_request_);
+            // RCLCPP_INFO_STREAM(node_->get_logger(), "11Switched to input type: POSE");
+            // if (rclcpp::spin_until_future_complete(node_, result_future) == rclcpp::FutureReturnCode::SUCCESS) {
+            //     auto result = result_future.get();
+            //     if (result->success) {
+            //         command_type_ = command_type;
+            //         RCLCPP_INFO(node_->get_logger(), "Switched to input type: POSE");
+            //     } else {
+            //         RCLCPP_WARN(node_->get_logger(), "Could not switch input to: POSE");
+            //     }
+            // }
+            // else {
+            //     RCLCPP_ERROR(node_->get_logger(), "Failed to call service /servo_server/switch_command_type");
+            // }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void KeyboardServoPub::keyLoop()
 {
     char c;
@@ -119,6 +227,8 @@ void KeyboardServoPub::keyLoop()
     puts("Use 'W' to Cartesian jog in the world frame, and 'E' for the End-Effector frame");
     puts("Use 1|2|3|4|5|6|7 keys to joint jog. 'R' to reverse the direction of jogging.");
     puts("'Q' to quit.");
+
+    switch_request_ = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
     
     for (;;) {
         try {
@@ -228,6 +338,7 @@ void KeyboardServoPub::keyLoop()
         // If a key requiring a publish was pressed, publish the message now
         if (publish_twist)
         {
+            _switch_command_type(1);
             twist_msg->header.stamp = node_->now();
             twist_msg->header.frame_id = planning_frame_;
             twist_pub_->publish(std::move(twist_msg));
@@ -235,6 +346,7 @@ void KeyboardServoPub::keyLoop()
         }
         else if (publish_joint)
         {
+            _switch_command_type(0);
             joint_msg->header.stamp = node_->now();
             joint_msg->header.frame_id = "joint";
             joint_pub_->publish(std::move(joint_msg));
