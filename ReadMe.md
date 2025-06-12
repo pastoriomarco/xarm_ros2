@@ -41,7 +41,8 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
 - (2024-04-12) Added __uf_ros_lib__ to encapsulate certain functions for calling (including __MoveItConfigsBuilder__), see [Documentation](./uf_ros_lib/Readme.md)
 - (2024-10-11) Added [mbot_demo](demo/mbot_demo/readme.md) to demonstrate how to build a xarm robot on the chassis 
 - (2024-11-05) Support Jazzy version
-- (2024-12-02) Add detailed ReadMe instructions for xarm_api wrapped services.  
+- (2024-12-02) Add detailed ReadMe instructions for xarm_api wrapped services. 
+- (2025-05-28) Add xarm_vision 
 
 ## 3. Preparation
 
@@ -431,7 +432,6 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         # Or controlling real UFACTORY850:
         $ ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181 joystick_type:=1
         ```
-        ```
 
     - Controlling with __3Dconnexion SpaceMouse Wireless__:
         - 6 DOFs of the mouse are mapped for controlling X/Y/Z/ROLL/PITCH/YAW  
@@ -476,6 +476,130 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         $ ros2 run xarm_moveit_servo xarm_keyboard_input
         ```
         Please note that Moveit Servo may consider the home position as singularity point, then try with joint motion first.  
+
+- ### 5.10 xarm_vision
+    For simple demonstrations of vision application development with xArm, including hand-eye calibration and object detection and grasping. Examples are based on [Intel RealSense D435i](https://www.intelrealsense.com/depth-camera-d435i/) depth camera.
+
+    - #### 5.10.1 Installation of dependent packages:
+        - First enter the workspace source directory:
+            ```bash
+            $ cd ~/dev_ws/src/
+            ```
+        - ##### Install RealSense developer library and ROS package： 
+            Please refer to the installation steps at [official webpage](https://github.com/IntelRealSense/realsense-ros/tree/ros2-master).
+            ```bash
+            $ git clone -b ros2-master https://github.com/IntelRealSense/realsense-ros.git
+            ```
+
+        - ##### Install 'aruco_ros', for hand-eye calibration：
+            Refer to [official Github](https://github.com/pal-robotics/aruco_ros/tree/humble-devel):
+            ```bash
+            $ git clone -b humble-devel https://github.com/pal-robotics/aruco_ros.git
+            ```
+        - ##### Install 'easy_handeye2', for hand-eye calibration：
+            Refer to [official Github](https://github.com/marcoesposito1988/easy_handeye2):
+            ```bash
+            $ git clone https://github.com/marcoesposito1988/easy_handeye2.git
+            ``` 
+        - ##### Install 'find_object_2d', for object detection：
+            Refer to [official Github](https://github.com/introlab/find-object/tree/humble-devel):
+            ```bash
+            $ sudo apt-get install ros-humble-find-object-2d
+            ```
+        - ##### Install other dependencies：
+            ```bash
+            $ cd ~/dev_ws/src
+            $ rosdep update
+            $ rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y
+            ```
+        - ##### Build the whole workspace：
+            ```bash
+            $ colcon build
+            ```
+
+    - #### 5.10.2 Hand-eye Calibration Demo：
+        If attaching RealSense D435i camera at tool end of xArm, with mechanical adapters, making a "**eye-on-hand**"(or eye-in-hand) configuration，the following launch file can be used and modified for hand-eye calibration: (make sure the camera communication is functional and robot is properly switched on)
+
+        ```bash 
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=uf850 dof:=6 robot_ip:=your_xArm_IP
+        ```
+
+        Note: for xArm/UF850 produced **after August 2023**, kinematic calibration can be added to the URDF model, you can specify `kinematics_suffix` parameter for better accuracy.  
+
+        The `aruco Marker` used inside can be downloaded [here](https://chev.me/arucogen/), please remember the `marker ID` and `marker size` and modify them in the launch file accordingly. Refer to [official](https://github.com/IFL-CAMP/easy_handeye#calibration)or other usage instructions online and finish the calibration with the GUI.   
+
+        If calculation result is confirmed and saved，it will appear by default under `~/.ros2/easy_handeye2/calibrations/` directory and can be used for transferring object coordinates to base frame. If the [camera_stand](https://www.ufactory.cc/products/xarm-camera-module-2020) provided by UFACTORY is used for fixing camera, some sample calibration result are stored at `xarm_vision/d435i_xarm_setup/config/` for this case.  
+
+        ##### Precautions for Hand-eye Calibration:
+        Since `easy_handeye2` does not generate the robot arm position by default, we can control the robot arm to different positions through the xarm studio control interface or enable drag teaching after starting the above command, and then collect data through the "__Take Sample__" in the hand-eye calibration window. After collecting, the result will be automatically calculated. After collecting about 17 data, save it through "__Save__" (by default, save it in `~/.ros2/easy_handeye2/calibrations/`). It is recommended to rotate the rpy as much as possible to ensure that the calibration plate is within the field of view for the position of the robotic arm during each acquisition.
+        - The angle between the rotation axes of the two movements should be as large as possible
+        - The rotation angle corresponding to the rotation matrix of each movement should be as large as possible
+        - The distance from the camera center to the calibration plate should be as small as possible
+        - The distance moved by the end of the robot arm in each movement should be as small as possible
+
+    - #### 5.10.3 Vision Guided Grasping Demo:
+        [***find_object_2d***](http://introlab.github.io/find-object/) is used for this demo for simple object detection and grasping. Hardware used in this part: RealSense D435i depth camera, UFACTORY camera stand and the xArm Gripper(Vacuum Gripper for Lite6).  
+
+        Use moveit to drive xArm's motion，recommended for singularity and collision free execution, but will require a reliable network connection.  
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+
+        # The default calibration parameters are ~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
+        # If you need to specify the startup parameter calib_filename, the calibration parameters recorded in the d435i_xarm_setup/config/{calib_filename}.calib file will be used
+        ```
+        If target object can be properly detected, to run the Grasping node:  
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF
+        # Lite6
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=lite dof:=6
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=uf850 dof:=6
+        ```
+        For node program source code, refer to: d435i_xarm_setup/src/[findobj_grasp_moveit_planner.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_moveit_planner.cpp).  
+
+        2.Alternatively, to drive xArm motion with ros service provided by 'xarm_api', in this way, real-time performance of network will not be required so strict as moveit way, but execution may fail in the middle if singularity or self-collision is about to occur. 
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+
+        # The default calibration parameters are ~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
+        # If you need to specify the startup parameter calib_filename, the calibration parameters recorded in the d435i_xarm_setup/config/{calib_filename}.calib file will be used
+        ```
+        If target object can be properly detected, to run the Grasping node:  
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF
+        # Lite6
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=lite dof:=6
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=uf850 dof:=6
+        ```
+        For node program source code, refer to: d435i_xarm_setup/src/[findobj_grasp_xarm_api.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_xarm_api.cpp).  
+
+        ***Please read and comprehend the source code and make necessary modifications before real application test***, necessary modifications include preparation pose, grasping orientation, grasping depth, motion speed and so on. The identification target name in the code is "object_1", which corresponds to `1.png` in /objects directory, users can add their own target in "find_object_2d" GUI, then modify the `source_frame` inside the code, for costomized application.  
+
+        ***Tips***: make sure the background is clean and the color is distinguished from the object, detection success rate can be higher if the target object has rich texture (features).
+
+    - #### 5.10.4 Adding RealSense D435i model to simulated xArm：
+        For installation with camera stand provided by UFACTORY, the cam model can be attached by following modifications (use xarm7 as example):    
+        ```bash
+        $ ros2 launch xarm_moveit_config xarm7_moveit_fake.launch add_realsense_d435i:=true
+        ```
 
 ## 6. Instruction on major launch arguments
 - __robot_ip__,

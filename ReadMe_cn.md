@@ -41,6 +41,7 @@
 - (2024-10-11) 增加[mbot_demo](demo/mbot_demo/readme.md)演示如何建立xarm机械臂在底盘之上
 - (2024-11-05) 支持Ros Jazzy版本
 - (2024-12-02) 新增xarm_api封装的sdk服务的详细使用说明  
+- (2025-05-28) 新增xarm_vision
 
 ## 3. 准备工作
 
@@ -463,6 +464,126 @@ __注意4: 以下描述的<hw_ns>用实际的替换，xarm系列默认为xarm, �
 
         # 之后在另一个终端，运行键盘输入响应节点
         $ ros2 run xarm_moveit_servo xarm_keyboard_input
+        ```
+- ### 5.10 xarm_vision
+    提供xArm扩展视觉应用的基础示例，包括手眼标定和视觉抓取，例程主要基于[Intel RealSense D435i](https://www.intelrealsense.com/depth-camera-d435i/)深度相机。 
+
+    - #### 5.10.1 相关依赖库和ros包的安装：
+        - 首先进入ros工作空间：
+            ```bash
+            $ cd ~/dev_ws/src/
+            ```
+
+        - ##### 安装RealSense 开发支持库和ROS软件包： 
+            请依照[官方指示步骤](https://github.com/IntelRealSense/realsense-ros/tree/ros2-master)正确安装。
+            ```bash
+            $ git clone -b ros2-master https://github.com/IntelRealSense/realsense-ros.git
+            ```
+
+        - ##### 安装aruco_ros, 用于手眼标定：
+            参考[官方Github](https://github.com/pal-robotics/aruco_ros/tree/humble-devel):
+            ```bash
+            $ git clone -b humble-devel https://github.com/pal-robotics/aruco_ros.git
+            ```
+        - ##### 安装easy_handeye2, 用于手眼标定：
+            参考[官方Github](https://github.com/marcoesposito1988/easy_handeye2):
+            ```bash
+            $ git clone https://github.com/marcoesposito1988/easy_handeye2.git
+            ``` 
+        - ##### 安装find_object_2d包，用于物体识别：
+            参考[官方Github](https://github.com/introlab/find-object/tree/humble-devel):
+            ```bash
+            $ sudo apt-get install ros-humble-find-object-2d
+            ```
+        - ##### 安装其他依赖包：
+            ```bash
+            $ cd ~/dev_ws/src
+            $ rosdep update
+            $ rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y
+            ```
+        - ##### 编译整个工作区：
+            ```bash
+            $ colcon build
+            ```
+
+    - #### 5.10.2 手眼标定示例：
+        如果使用RealSense D435i相机配合固定工件安装在手臂末端，即“**眼在手上**”，确保相机与电脑通信正常且手臂正常上电后，可以参考和使用如下launch脚本进行手眼标定：
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=uf850 dof:=6 robot_ip:=your_xArm_IP
+        ```
+        注意: 对于**2023年8月之后**生产的xArm/UF850系列型号, 可以选择将运动学校准参数加入到URDF模型中, 在以上的launch命令中使用`kinematics_suffix`参数来提高标定的准确度。   
+
+        标定使用的aruco二维码可以在[这里下载](https://chev.me/arucogen/)，请记住自己下载的`marker ID`和`marker size`，并在以上launch文件中修改。参考[官方](https://github.com/IFL-CAMP/easy_handeye#calibration)或其他网络教程通过图形界面进行标定，标定完成并确认保存后，默认会在 `~/.ros2/easy_handeye2/calibrations/`目录下生成`.calib`后缀的结果文档，供后续与手臂一起进行坐标变换使用。如果固定件用的是UFACTORY提供的[camera_stand](https://www.ufactory.cc/products/xarm-camera-module-2020)，在`xarm_vision/d435i_xarm_setup/config/`目录中保存了参考的标定结果。 
+
+        ##### 手眼标定注意事项:
+        由于`easy_handeye2`默认不生成机械臂位置，我们可以在上述命令启动后，通过xarm studio控制界面或者开启拖动示教认为控制机械臂到不同位置，然后通过启动的手眼标定窗口的"__Take Sample__"采集数据，采集后会自动计算结果，采集到大概17个数据后通过"__Save__"保存(默认保存在`~/.ros2/easy_handeye2/calibrations/`)，每次采集时机械臂的位置建议在保证标定板在视野范围内尽量多旋转rpy
+        - 两次运动的旋转轴的夹角越大越好
+        - 每次运动的旋转矩阵对应的旋转角度越大越好
+        - 相机中心到标定板的距离越小越好
+        - 每次运动机械臂末端运动的距离越小越好
+
+    - #### 5.10.3 3D视觉抓取示例：
+        本部分提供利用[***find_object_2d***](http://introlab.github.io/find-object/)进行简单的物体识别和抓取的示例程序。使用了RealSense D435i深度相机，UFACTORY camera_stand以及xArm官方机械爪(__Lite6用的是吸头__)。  
+
+        1.使用moveit驱动手臂动作，如果规划成功会保证无碰撞和奇异点的轨迹执行, 但对网络通信稳定性要求较高：
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+
+        # 默认使用的标定参数是~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
+        # 如果需要指定启动参数calib_filename, 将使用d435i_xarm_setup/config/{calib_filename}.calib文件记录的标定参数
+        ```
+        如果目标物体可以正常识别，执行抓取节点:  
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF
+        # Lite6
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=lite dof:=6
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=uf850 dof:=6
+        ```
+        节点代码可以参考d435i_xarm_setup/src/[findobj_grasp_moveit_planner.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_moveit_planner.cpp).  
+
+        2.或者使用xarm_api提供的ros service驱动手臂动作，网络稳定性要求不高，但部分时候执行过程中可能报错（奇异点或将要发生自碰撞等）：
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        # Lite6
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+
+        # 默认使用的标定参数是~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
+        # 如果需要指定启动参数calib_filename, 将使用d435i_xarm_setup/config/{calib_filename}.calib文件记录的标定参数
+        ```
+        如果目标物体可以正常识别，执行抓取节点:  
+        ```bash
+        # xArm 5/6/7
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF
+        # Lite6
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=lite dof:=6
+        # UFACTORY850
+        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=uf850 dof:=6
+        ``` 
+        节点代码可以参考d435i_xarm_setup/src/[findobj_grasp_xarm_api.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_xarm_api.cpp).
+
+        ***实际应用之前，请先读懂对应的代码，并针对自己的场景做出必要的修改***，比如抓取准备位置，姿态，抓取深度以及移动速度等等。代码中使用的识别目标名称为“object_1”，对应/objects目录下的`1.png`，用户可以根据实际应用在find_object_2d的图形界面中添加新的目标并修改节点程序中的`source_frame`，来识别感兴趣的物体。  
+
+        ***Tips***: 应注意背景尽量干净而且颜色与被识别物体有区分度，如果目标物体有比较丰富的文理，识别率会更高。
+
+    - #### 7.4 在仿真的xArm模型末端添加RealSense D435i模型：
+        如果使用UFACTORY提供的camera stand固定，可以通过以下设置添加到虚拟模型（以xarm7为例）：  
+        ```bash
+        $ ros2 launch xarm_moveit_config xarm7_moveit_fake.launch add_realsense_d435i:=true
         ```
 
 
