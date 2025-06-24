@@ -165,6 +165,22 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{'use_sim_time': True}],
     )
 
+    # Gz - ROS Bridge
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            # Clock (IGN -> ROS2)
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            # Joint states (IGN -> ROS2)
+            # '/world/empty/model/UF_ROBOT/joint_state@sensor_msgs/msg/JointState[gz.msgs.Model',
+        ],
+        remappings=[
+            # ('/world/empty/model/UF_ROBOT/joint_state', 'joint_states'),
+        ],
+        output='screen'
+    )
+
     # rviz with moveit configuration
     rviz_config_file = PathJoinSubstitution([FindPackageShare(moveit_config_package_name), 'rviz', 'planner.rviz' if no_gui_ctrl.perform(context) == 'true' else 'moveit.rviz'])
     rviz2_node = Node(
@@ -226,6 +242,12 @@ def launch_setup(context, *args, **kwargs):
                 event_handler=OnProcessStart(
                     target_action=robot_state_publisher_node,
                     on_start=gazebo_spawn_entity_node,
+                )
+            ),
+            RegisterEventHandler(
+                event_handler=OnProcessStart(
+                    target_action=robot_state_publisher_node,
+                    on_start=bridge,
                 )
             ),
             RegisterEventHandler(
