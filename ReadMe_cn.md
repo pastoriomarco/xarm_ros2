@@ -78,9 +78,12 @@
 - ### 4.3 升级xarm_ros2源码包
     ```bash
     $ cd ~/dev_ws/src/xarm_ros2
-    $ git pull
-    $ git submodule sync
-    $ git submodule update --init --remote
+
+    # 如果克隆时没有使用--recursive或--recurse-submodules参数, 使用该命令来初始化并更新所有子模块
+    $ git submodule update --init --recursive
+    
+    # 拉取（Pull）主仓库并更新子模块
+    $ git pull --recurse-submodules
     ```
 
 - ### 4.4 安装xarm_ros2依赖

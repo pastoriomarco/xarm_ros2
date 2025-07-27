@@ -170,6 +170,9 @@ namespace xarm_api
 
         node_->get_parameter_or("joint_states.rate", joint_state_rate_, -1);
         node_->get_parameter_or("joint_states.flags", joint_state_flags_, -1);
+        int rate = -1;
+        node_->get_parameter_or("joint_states_rate", rate, -1);
+        joint_state_rate_ = rate > 0 ? rate : joint_state_rate_;
 
         RCLCPP_INFO(node_->get_logger(), "robot_ip=%s, report_type=%s, dof=%d", server_ip.c_str(), report_type_.c_str(), dof_);
 

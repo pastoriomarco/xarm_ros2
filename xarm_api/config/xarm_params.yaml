@@ -26,9 +26,9 @@ ufactory_driver:
       clean_bio_gripper_error: false
       start_record_trajectory: false
       stop_record_trajectory: false
-      ft_sensor_set_zero: false
-      set_linear_track_stop: false
-      clean_linear_track_error: false
+      set_ft_sensor_zero: false       # The old name is ft_sensor_set_zero, please use the new one
+      set_linear_motor_stop: false    # The old name is set_linear_track_stop, please use the new one
+      clean_linear_motor_error: false # The old name is clean_linear_track_error, please use the new one
       open_lite6_gripper: false
       close_lite6_gripper: false
       stop_lite6_gripper: false
@@ -40,17 +40,17 @@ ufactory_driver:
       get_bio_gripper_error: false
       get_reduced_mode: false
       get_report_tau_or_i: false
-      ft_sensor_app_get: false
+      get_ft_sensor_mode: false           # The old name is ft_sensor_app_get, please use the new one
       get_ft_sensor_error: false
       get_trajectory_rw_status: false
-      get_linear_track_pos: false
-      get_linear_track_status: false
-      get_linear_track_error: false
-      get_linear_track_is_enabled: false
-      get_linear_track_on_zero: false
-      get_linear_track_sci: false
+      get_linear_motor_pos: false         # The old name is get_linear_track_pos, please use the new one
+      get_linear_motor_status: false      # The old name is get_linear_track_status, please use the new one
+      get_linear_motor_error: false       # The old name is get_linear_track_error, please use the new one
+      get_linear_motor_is_enabled: false  # The old name is get_linear_track_is_enabled, please use the new one
+      get_linear_motor_on_zero: false     # The old name is get_linear_track_on_zero, please use the new one
+      get_linear_motor_sci: false         # The old name is get_linear_track_sci, please use the new one
       get_err_warn_code: false
-      get_linear_track_sco: false
+      get_linear_motor_sco: false         # The old name is get_linear_track_sco, please use the new one
       set_mode: true
       set_state: true
       set_collision_sensitivity: false
@@ -66,10 +66,10 @@ ufactory_driver:
       set_simulation_robot: false
       set_baud_checkset_enable: false
       set_report_tau_or_i: false
-      ft_sensor_enable: false
-      ft_sensor_app_set: false
-      set_linear_track_enable: false
-      set_linear_track_speed: false
+      set_ft_sensor_enable: false     # The old name is ft_sensor_enable, please use the new one
+      set_ft_sensor_mode: false       # The old name is ft_sensor_app_set, please use the new one
+      set_linear_motor_enable: false  # The old name is set_linear_track_enable, please use the new one
+      set_linear_motor_speed: false   # The old name is set_linear_track_speed, please use the new one
       set_cartesian_velo_continuous: false
       set_allow_approx_motion: false
       set_only_check_type: false
@@ -138,11 +138,9 @@ ufactory_driver:
       load_trajectory: false
       playback_trajectory: false
       iden_tcp_load: false
-      ft_sensor_iden_load: false
-      ft_sensor_cali_load: false
+      iden_ft_sensor_load_offset: false   # The old name is ft_sensor_iden_load, please use the new one
+      set_ft_sensor_load_offset: false    # The old name is ft_sensor_cali_load, please use the new one
       config_force_control: false
-      set_impedance: false
-      set_impedance_mbk: false
-      set_impedance_config: false
-      set_linear_track_back_origin: false
-      set_linear_track_pos: false
+      set_ft_sensor_admittance_parameters: false  # The old name is set_impedance/set_impedance_mbk/set_impedance_config, please use the new one
+      set_linear_motor_back_origin: false # The old name is set_linear_track_back_origin, please use the new one
+      set_linear_motor_pos: false         # The old name is set_linear_track_pos, please use the new one
