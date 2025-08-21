@@ -369,6 +369,12 @@ def launch_setup(context, *args, **kwargs):
                 )
             ),
             RegisterEventHandler(
+                event_handler=OnProcessStart(
+                    target_action=robot_state_publisher_node,
+                    on_start=bridge,
+                )
+            ),
+            RegisterEventHandler(
                 condition=IfCondition(show_rviz),
                 event_handler=OnProcessExit(
                     target_action=gazebo_spawn_entity_node,
