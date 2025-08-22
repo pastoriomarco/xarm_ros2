@@ -10,23 +10,40 @@
     joint3_lower_limit:=${-0.061087}  joint3_upper_limit:=${5.235988}
     joint4_lower_limit:=${-2.0*pi}  joint4_upper_limit:=${2.0*pi}
     joint5_lower_limit:=${-2.1642}  joint5_upper_limit:=${2.1642}
-    joint6_lower_limit:=${-2.0*pi}  joint6_upper_limit:=${2.0*pi}">
+    joint6_lower_limit:=${-2.0*pi}  joint6_upper_limit:=${2.0*pi}
+    joint_commands_topic:='/isaac_joint_commands'
+    joint_states_topic:='/isaac_joint_states'">
+
     <ros2_control name="${prefix}${ros2_control_plugin}" type="system">
       <hardware>
-        <plugin>${ros2_control_plugin}</plugin>
-        <xacro:if value="${ros2_control_plugin == 'uf_robot_hardware/UFRobotSystemHardware'}">
-          <param name="hw_ns">${prefix}${hw_ns}</param>
-          <param name="velocity_control">${velocity_control}</param>
-          <param name="prefix">P${prefix}</param>
-          <param name="robot_ip">R${robot_ip}</param>
-          <param name="report_type">${report_type}</param>
-          <param name="dof">6</param>
-          <param name="baud_checkset">${baud_checkset}</param>
-          <param name="default_gripper_baud">${default_gripper_baud}</param>
-          <param name="robot_type">lite</param>
-          <param name="add_gripper">${add_gripper}</param>
+
+        <!-- Isaac special case: use a *token* 'isaac' to keep the node name valid -->
+        <xacro:if value="${ros2_control_plugin == 'isaac'}">
+          <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
+          <param name="joint_commands_topic">${joint_commands_topic}</param>
+          <param name="joint_states_topic">${joint_states_topic}</param>
         </xacro:if>
+
+        <!-- Everything else: behave like the original file -->
+        <xacro:unless value="${ros2_control_plugin == 'isaac'}">
+          <plugin>${ros2_control_plugin}</plugin>
+
+          <!-- Real xArm hardware parameters (only when that plugin is selected) -->
+          <xacro:if value="${ros2_control_plugin == 'uf_robot_hardware/UFRobotSystemHardware'}">
+            <param name="hw_ns">${prefix}${hw_ns}</param>
+            <param name="velocity_control">${velocity_control}</param>
+            <param name="prefix">P${prefix}</param>
+            <param name="robot_ip">R${robot_ip}</param>
+            <param name="report_type">${report_type}</param>
+            <param name="dof">6</param>
+            <param name="baud_checkset">${baud_checkset}</param>
+            <param name="default_gripper_baud">${default_gripper_baud}</param>
+            <param name="robot_type">lite</param>
+            <param name="add_gripper">${add_gripper}</param>
+          </xacro:if>
+        </xacro:unless>
       </hardware>
+
       <joint name="${prefix}joint1">
         <command_interface name="position">
           <param name="min">${joint1_lower_limit}</param>

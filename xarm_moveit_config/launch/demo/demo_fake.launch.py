@@ -18,6 +18,8 @@ def launch_setup(context, *args, **kwargs):
     add_bio_gripper = LaunchConfiguration('add_bio_gripper', default=False)
 
     xarm_type = '{}{}'.format(robot_type.perform(context), dof.perform(context) if robot_type.perform(context) in ('xarm', 'lite') else '')
+    
+    ros2_control_plugin = LaunchConfiguration('ros2_control_plugin', default='uf_robot_hardware/UFRobotFakeSystemHardware')
 
     # ros2_controllers_path
     ros2_controllers_path = generate_ros2_control_params_temp_file(
@@ -37,7 +39,7 @@ def launch_setup(context, *args, **kwargs):
         add_gripper=add_gripper,
         add_vacuum_gripper=add_vacuum_gripper,
         add_bio_gripper=add_bio_gripper,
-        ros2_control_plugin='uf_robot_hardware/UFRobotFakeSystemHardware',
+        ros2_control_plugin=ros2_control_plugin,
         ros2_control_params=ros2_controllers_path,
     ).to_moveit_configs()
 
@@ -96,6 +98,8 @@ def launch_setup(context, *args, **kwargs):
     controllers = ['{}{}_traj_controller'.format(prefix.perform(context), xarm_type)]
     if add_gripper.perform(context) in ('True', 'true') and robot_type.perform(context) != 'lite':
         controllers.append('{}{}_gripper_traj_controller'.format(prefix.perform(context), robot_type.perform(context)))
+    elif add_gripper.perform(context) in ('True', 'true') and robot_type.perform(context) == 'lite':
+        controllers.append('{}lite_gripper_controller'.format(prefix.perform(context)))
     elif add_bio_gripper.perform(context) in ('True', 'true') and robot_type.perform(context) != 'lite':
         controllers.append('{}bio_gripper_traj_controller'.format(prefix.perform(context)))
     

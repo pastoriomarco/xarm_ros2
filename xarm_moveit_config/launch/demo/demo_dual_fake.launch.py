@@ -41,6 +41,8 @@ def launch_setup(context, *args, **kwargs):
     xarm_type_1 = '{}{}'.format(robot_type_1.perform(context), dof_1.perform(context) if robot_type_1.perform(context) in ('xarm', 'lite') else '')
     xarm_type_2 = '{}{}'.format(robot_type_2.perform(context), dof_2.perform(context) if robot_type_2.perform(context) in ('xarm', 'lite') else '')
     
+    ros2_control_plugin = LaunchConfiguration('ros2_control_plugin', default='uf_robot_hardware/UFRobotFakeSystemHardware')
+    
     # ros2_controllers_path
     ros2_controllers_path = generate_dual_ros2_control_params_temp_file(
         os.path.join(get_package_share_directory('xarm_controller'), 'config', '{}_controllers.yaml'.format(xarm_type_1)),
@@ -80,7 +82,7 @@ def launch_setup(context, *args, **kwargs):
         add_vacuum_gripper_2=add_vacuum_gripper_2,
         add_bio_gripper_1=add_bio_gripper_1,
         add_bio_gripper_2=add_bio_gripper_2,
-        ros2_control_plugin='uf_robot_hardware/UFRobotFakeSystemHardware',
+        ros2_control_plugin=ros2_control_plugin,
         ros2_control_params=ros2_controllers_path,
     ).to_moveit_configs()
 
@@ -149,11 +151,15 @@ def launch_setup(context, *args, **kwargs):
     ]
     if add_gripper_1.perform(context) in ('True', 'true') and robot_type_1.perform(context) != 'lite':
         controllers.append('{}{}_gripper_traj_controller'.format(prefix_1.perform(context), robot_type_1.perform(context)))
+    elif add_gripper.perform(context) in ('True', 'true') and robot_type_1.perform(context) == 'lite':
+        controllers.append('{}lite_gripper_controller'.format(prefix_1.perform(context)))
     elif add_bio_gripper_1.perform(context) in ('True', 'true') and robot_type_1.perform(context) != 'lite':
         controllers.append('{}bio_gripper_traj_controller'.format(prefix_1.perform(context)))
     
     if add_gripper_2.perform(context) in ('True', 'true') and robot_type_2.perform(context) != 'lite':
         controllers.append('{}{}_gripper_traj_controller'.format(prefix_2.perform(context), robot_type_2.perform(context)))
+    elif add_gripper.perform(context) in ('True', 'true') and robot_type_2.perform(context) == 'lite':
+        controllers.append('{}lite_gripper_controller'.format(prefix_2.perform(context)))
     elif add_bio_gripper_2.perform(context) in ('True', 'true') and robot_type_2.perform(context) != 'lite':
         controllers.append('{}bio_gripper_traj_controller'.format(prefix_2.perform(context)))
 

@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- ros2_control for the Lite pneumatic gripper (no transmissions, no motors) -->
+  <xacro:macro name="lite_gripper_ros2_control" params="
+      prefix:=''
+      ros2_control_plugin:=''
+      isaac_cmd_topic:='/isaac_joint_commands'
+      isaac_state_topic:='/isaac_joint_states'
+    ">
+
+    <ros2_control name="${prefix}XArmGripperSystem" type="system">
+      <hardware>
+        <!-- Isaac SIM: topic-based joint bridge -->
+        <xacro:if value="${ros2_control_plugin == 'isaac'}">
+          <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
+          <param name="joint_commands_topic">${isaac_cmd_topic}</param>
+          <param name="joint_states_topic">${isaac_state_topic}</param>
+        </xacro:if>
+        <!-- Generic -->
+        <xacro:unless value="${ros2_control_plugin == 'isaac'}">
+          <plugin>${ros2_control_plugin}</plugin>
+        </xacro:unless>
+      </hardware>
+
+      <!-- Drive joint: only this joint is commandable -->
+      <joint name="${prefix}right_finger_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- Mimic joint(s): state-only, no command interfaces --> <!-- REMOVED TO AVOID CONFLICTS WITH TF AS IT'S NOT CONTROLLED-->
+      <!-- <joint name="${prefix}left_finger_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint> -->
+
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

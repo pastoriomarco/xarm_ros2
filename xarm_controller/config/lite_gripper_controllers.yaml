@@ -1,0 +1,10 @@
+controller_manager:
+  ros__parameters:
+    # Gripper action controller (no trajectory controller here)
+    lite_gripper_controller:
+      type: position_controllers/GripperActionController
+
+lite_gripper_controller:
+  ros__parameters:
+    # The single drive joint for the pneumatic gripper
+    joint: right_finger_joint

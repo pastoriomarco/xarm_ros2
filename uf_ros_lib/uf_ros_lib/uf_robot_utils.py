@@ -120,26 +120,78 @@ def load_yaml(package_name, *file_path):
         return {}
 
 
-def add_prefix_to_ros2_control_params(prefix, ros2_control_params):
+def add_prefix_to_ros2_control_params(prefix: str, ros2_control_params: dict) -> None:
+    """
+    Prefix controller names and joint names in a ros2_control params dict for a dual-arm setup.
+
+    - Adds `prefix` (e.g. "L_" / "R_") to all controller *sections* and to their entries under
+      controller_manager.ros__parameters, so spawner names and controller types stay aligned.
+    - Prefixes both "joints" (list) and "joint" (singular) parameters.
+    - Renames per-joint keys inside "constraints" if they reference the (now-prefixed) joint names.
+    - IMPORTANT: keeps 'joint_state_broadcaster' unprefixed to match the spawner/launch behavior.
+
+    Mutates `ros2_control_params` in place.
+    """
     if not prefix:
         return
+
+    SKIP_RENAME = {'joint_state_broadcaster'}  # never prefix this one
+
+    # 1) Rename controller *entries* under controller_manager.ros__parameters
+    cm = ros2_control_params.get('controller_manager', {}).get('ros__parameters', {})
+    if isinstance(cm, dict):
+        for name in list(cm.keys()):
+            # skip non-controller keys and broadcaster
+            if name in ('update_rate', 'use_sim_time') or name in SKIP_RENAME:
+                continue
+            if not name.startswith(prefix):
+                cm[f'{prefix}{name}'] = cm.pop(name)
+
+    # 2) Rename top-level controller sections and prefix their joints / constraints
     for name in list(ros2_control_params.keys()):
-        if name == 'controller_manager':
+        if name == 'controller_manager' or name in SKIP_RENAME:
             continue
-        ros__parameters = ros2_control_params[name].get('ros__parameters', {})
-        joints = ros__parameters.get('joints', [])
-        constraints = ros__parameters.get('constraints', {})
-        for i, joint in enumerate(joints):
-            for j, key in enumerate(constraints.keys()):
-                if key == joint:
-                    constraints['{}{}'.format(prefix, key)] = constraints.pop(key)
-                    break
-            joints[i] = '{}{}'.format(prefix, joint)
-        new_name = '{}{}'.format(prefix, name)
-        ros2_control_params[new_name] = ros2_control_params.pop(name)
-        controller_manager_ros__parameters = ros2_control_params.get('controller_manager', {}).get('ros__parameters', {})
-        if name in controller_manager_ros__parameters:
-            controller_manager_ros__parameters[new_name] = controller_manager_ros__parameters.pop(name)
+
+        node = ros2_control_params.get(name)
+        if not isinstance(node, dict):
+            continue
+
+        ros_params = node.get('ros__parameters', {})
+        if isinstance(ros_params, dict):
+            # ----- joints: list -----
+            if 'joints' in ros_params and isinstance(ros_params['joints'], list):
+                original_joints = list(ros_params['joints'])
+                prefixed_joints = [
+                    j if str(j).startswith(prefix) else f'{prefix}{j}' for j in original_joints
+                ]
+                ros_params['joints'] = prefixed_joints
+
+                # Remap constraints keys that match old joint names
+                cons = ros_params.get('constraints', {})
+                if isinstance(cons, dict):
+                    mapping = {old: new for old, new in zip(original_joints, prefixed_joints)}
+                    for k in list(cons.keys()):
+                        if k in mapping and mapping[k] not in cons:
+                            cons[mapping[k]] = cons.pop(k)
+
+            # ----- joint: singular -----
+            if 'joint' in ros_params and isinstance(ros_params['joint'], str):
+                orig = ros_params['joint']
+                newj = orig if orig.startswith(prefix) else f'{prefix}{orig}'
+                ros_params['joint'] = newj
+
+                # Remap constraints key if it referenced the old joint name
+                cons = ros_params.get('constraints', {})
+                if isinstance(cons, dict) and orig in cons and newj not in cons:
+                    cons[newj] = cons.pop(orig)
+
+            # write back (in case we replaced dict objects)
+            node['ros__parameters'] = ros_params
+
+        # Rename the controller section itself (skip if already prefixed)
+        if not name.startswith(prefix):
+            ros2_control_params[f'{prefix}{name}'] = ros2_control_params.pop(name)
+
 
 
 def generate_ros2_control_params_temp_file(ros2_control_params_path, prefix='', add_gripper=False, add_bio_gripper=False, ros_namespace='', update_rate=None, robot_type='xarm', use_sim_time=False):
