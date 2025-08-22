@@ -73,15 +73,18 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
     cd ~/dev_ws/src
     # DO NOT omit "--recursive"，or the source code of dependent submodule will not be downloaded.
     # Pay attention to the use of the -b parameter command branch, $ROS_DISTRO indicates the currently activated ROS version, if the ROS environment is not activated, you need to customize the specified branch (foxy/galactic/humble)
-    git clone https://github.com/pastoriomarco/xarm_ros2.git --recursive -b $ROS_DISTRO
+    git clone https://github.com/xArm-Developer/xarm_ros2.git --recursive -b $ROS_DISTRO
     ```
 
 - ### 4.3 Update "xarm_ros2" repository 
     ```bash
     cd ~/dev_ws/src/xarm_ros2
-    git pull
-    git submodule sync
-    git submodule update --init --remote
+
+    # If you did not use the --recursive or --recurse-submodules option when cloning, use this command to initialize and update all submodules
+    git submodule update --init --recursive
+    
+    # Pull the main repository and update the submodule
+    git pull --recurse-submodules
     ```
 
 - ### 4.4 Install dependencies
@@ -115,8 +118,8 @@ __Reminder 1: If there are multiple people using ros2 in the current LAN, in ord
 __Reminder 2： Remember to source the environment setup script before running any applications in xarm_ros2__  
 
 ```bash
-$ cd ~/dev_ws/
-$ source install/setup.bash
+cd ~/dev_ws/
+source install/setup.bash
 ```
 __Reminder 3： All following instructions will base on xArm6，please use proper parameters or filenames for xArm5 or xArm7__  
 __Reminder 4: The <hw_ns> described below is replaced with the actual one, the xarm series defaults is xarm, and the rest defaults is ufactory__  
@@ -125,11 +128,11 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
 - ### 5.1 xarm_description
     This package contains robot description files and 3D models of xArm. Models can be displayed in RViz by the following launch file:
     ```bash
-    $ cd ~/dev_ws/
+    cd ~/dev_ws/
     # set 'add_gripper=true' to attach xArm gripper model
     # set 'add_vacuum_gripper=true' to attach xArm vacuum gripper model
     # Notice：Only one end_effector can be attached (set to 'true').
-    $ ros2 launch xarm_description xarm6_rviz_display.launch.py [add_gripper:=true] [add_vacuum_gripper:=true]
+    ros2 launch xarm_description xarm6_rviz_display.launch.py [add_gripper:=true] [add_vacuum_gripper:=true]
     ```
 
 - ### 5.2 xarm_msgs  
@@ -169,76 +172,76 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     - __Launch and test (xArm)__:  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # launch xarm_driver_node
-        $ ros2 launch xarm_api xarm6_driver.launch.py robot_ip:=192.168.1.117
+        ros2 launch xarm_api xarm6_driver.launch.py robot_ip:=192.168.1.117
         # service test
-        $ ros2 run xarm_api test_xarm_ros_client
+        ros2 run xarm_api test_xarm_ros_client
         # topic test
-        $ ros2 run xarm_api test_robot_states
+        ros2 run xarm_api test_robot_states
         ```
 
     - __Use command line (xArm)__:
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # launch xarm_driver_node:
-        $ ros2 launch xarm_api xarm6_driver.launch.py robot_ip:=192.168.1.117
+        ros2 launch xarm_api xarm6_driver.launch.py robot_ip:=192.168.1.117
         
         # enable all joints:
-        $ ros2 service call /xarm/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
+        ros2 service call /xarm/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
         
         # set proper mode (0) and state (0)
-        $ ros2 service call /xarm/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
-        $ ros2 service call /xarm/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /xarm/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /xarm/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
         
         # Cartesian linear motion: (unit: mm, rad)
-        $ ros2 service call /xarm/set_position xarm_msgs/srv/MoveCartesian "{pose: [300, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
+        ros2 service call /xarm/set_position xarm_msgs/srv/MoveCartesian "{pose: [300, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
         
         # joint motion for xArm6: (unit: rad)
-        $ ros2 service call /xarm/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
+        ros2 service call /xarm/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
         ```
     
     - __Use command line (lite6)__:
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # launch ufactory_driver_node:
-        $ ros2 launch xarm_api lite6_driver.launch.py robot_ip:=192.168.1.161
+        ros2 launch xarm_api lite6_driver.launch.py robot_ip:=192.168.1.161
         
         # enable all joints:
-        $ ros2 service call /ufactory/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
+        ros2 service call /ufactory/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
         
         # set proper mode (0) and state (0)
-        $ ros2 service call /ufactory/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
-        $ ros2 service call /ufactory/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /ufactory/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /ufactory/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
         
         # Cartesian linear motion: (unit: mm, rad)
-        $ ros2 service call /ufactory/set_position xarm_msgs/srv/MoveCartesian "{pose: [250, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
+        ros2 service call /ufactory/set_position xarm_msgs/srv/MoveCartesian "{pose: [250, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
         
         # joint motion: (unit: rad)
-        $ ros2 service call /ufactory/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
+        ros2 service call /ufactory/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
         ```
     
     - __Use command line (UFACTORY850)__:
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # launch ufactory_driver_node:
-        $ ros2 launch xarm_api uf850_driver.launch.py robot_ip:=192.168.1.181
+        ros2 launch xarm_api uf850_driver.launch.py robot_ip:=192.168.1.181
         
         # enable all joints:
-        $ ros2 service call /ufactory/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
+        ros2 service call /ufactory/motion_enable xarm_msgs/srv/SetInt16ById "{id: 8, data: 1}"
         
         # set proper mode (0) and state (0)
-        $ ros2 service call /ufactory/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
-        $ ros2 service call /ufactory/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /ufactory/set_mode xarm_msgs/srv/SetInt16 "{data: 0}"
+        ros2 service call /ufactory/set_state xarm_msgs/srv/SetInt16 "{data: 0}"
         
         # Cartesian linear motion: (unit: mm, rad)
-        $ ros2 service call /ufactory/set_position xarm_msgs/srv/MoveCartesian "{pose: [250, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
+        ros2 service call /ufactory/set_position xarm_msgs/srv/MoveCartesian "{pose: [250, 0, 250, 3.14, 0, 0], speed: 50, acc: 500, mvtime: 0}"   
         
         # joint motion: (unit: rad)
-        $ ros2 service call /ufactory/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
+        ros2 service call /ufactory/set_servo_angle xarm_msgs/srv/MoveJoint "{angles: [-0.58, 0, 0, 0, 0, 0], speed: 0.35, acc: 10, mvtime: 0}"
         ```
 
     Note: please study the meanings of [Mode](https://github.com/xArm-Developer/xarm_ros#6-mode-change), State and available motion instructions before testing on the real robot. Please note **the services provided by xArm series and Lite 6 have different namespaces**.  
@@ -248,15 +251,15 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     This package defines the hardware interface for real xArm control under ros2.  
 
     ```bash
-    $ cd ~/dev_ws/
+    cd ~/dev_ws/
     # For xArm(xarm6 as example): set 'add_gripper=true' to attach xArm gripper model
-    $ ros2 launch xarm_controller xarm6_control_rviz_display.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
+    ros2 launch xarm_controller xarm6_control_rviz_display.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
 
     # For lite6: set 'add_gripper=true' to attach Lite6 gripper model
-    $ ros2 launch xarm_controller lite6_control_rviz_display.launch.py robot_ip:=192.168.1.161 [add_gripper:=true]
+    ros2 launch xarm_controller lite6_control_rviz_display.launch.py robot_ip:=192.168.1.161 [add_gripper:=true]
     
     # For UFACTORY850: set 'add_gripper=true' to attach xarm gripper model
-    $ ros2 launch xarm_controller uf850_control_rviz_display.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
+    ros2 launch xarm_controller uf850_control_rviz_display.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
     ```
 
 - ### 5.6 xarm_moveit_config
@@ -265,35 +268,35 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     - 【simulated】Launch moveit, controlling robot in rviz.  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For xArm(xarm6 as example): set 'add_gripper=true' to attach xArm gripper model
-        $ ros2 launch xarm_moveit_config xarm6_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config xarm6_moveit_fake.launch.py [add_gripper:=true]
 
         # For Lite6: set 'add_gripper=true' to attach Lite6 gripper model
-        $ ros2 launch xarm_moveit_config lite6_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config lite6_moveit_fake.launch.py [add_gripper:=true]
 
         # For UFACTORY850: set 'add_gripper=true' to attach xarm gripper model
-        $ ros2 launch xarm_moveit_config uf850_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config uf850_moveit_fake.launch.py [add_gripper:=true]
         ```
     
     - 【real arm】Launch moveit, controlling robot in rviz.  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For xArm(xarm6 as example): set 'add_gripper=true' to attach xArm gripper model
-        $ ros2 launch xarm_moveit_config xarm6_moveit_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
+        ros2 launch xarm_moveit_config xarm6_moveit_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
 
         # For Lite6: set 'add_gripper=true' to attach Lite6 gripper model
-        $ ros2 launch xarm_moveit_config lite6_moveit_realmove.launch.py robot_ip:=192.168.1.161 [add_gripper:=true]
+        ros2 launch xarm_moveit_config lite6_moveit_realmove.launch.py robot_ip:=192.168.1.161 [add_gripper:=true]
 
         # For UFACTORY850: set 'add_gripper=true' to attach xarm gripper model
-        $ ros2 launch xarm_moveit_config uf850_moveit_realmove.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
+        ros2 launch xarm_moveit_config uf850_moveit_realmove.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
         ```
     
     - 【Dual simulated】Launch single moveit process, and controlling two xArms in one rviz.  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # set 'add_gripper=true' to attach xArm gripper model
         # 'add_gripper_1': can separately decide whether to attach gripper for left arm，default for same value with 'add_gripper'
         # 'add_gripper_2': can separately decide whether to attach gripper for right arm，default for same value with 'add_gripper'
@@ -301,19 +304,19 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         # 'dof_2': can separately configure the model DOF of right arm，default to be the same DOF specified in filename.
         
         # For xArm (xarm6 here):
-        $ ros2 launch xarm_moveit_config dual_xarm6_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_xarm6_moveit_fake.launch.py [add_gripper:=true]
 
         # For Lite6:
-        $ ros2 launch xarm_moveit_config dual_lite6_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_lite6_moveit_fake.launch.py [add_gripper:=true]
 
         # For UFACTORY850:
-        $ ros2 launch xarm_moveit_config dual_uf850_moveit_fake.launch.py [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_uf850_moveit_fake.launch.py [add_gripper:=true]
         ```
     
     - 【Dual real arm】Launch single moveit process, and controlling two xArms in one rviz.  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # 'robot_ip_1': IP address of left arm
         # 'robot_ip_2': IP address of right arm
         # set 'add_gripper=true' to attach xArm gripper model
@@ -323,51 +326,51 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         # 'dof_2': can separately configure the model DOF of right arm，default to be the same DOF specified in filename.
         
         # For xArm (xarm6 here):
-        $ ros2 launch xarm_moveit_config dual_xarm6_moveit_realmove.launch.py robot_ip_1:=192.168.1.117 robot_ip_2:=192.168.1.203 [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_xarm6_moveit_realmove.launch.py robot_ip_1:=192.168.1.117 robot_ip_2:=192.168.1.203 [add_gripper:=true]
         
         # For Lite6:
-        $ ros2 launch xarm_moveit_config dual_lite6_moveit_realmove.launch.py robot_ip_1:=192.168.1.117 robot_ip_2:=192.168.1.203 [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_lite6_moveit_realmove.launch.py robot_ip_1:=192.168.1.117 robot_ip_2:=192.168.1.203 [add_gripper:=true]
 
         # For UFACTORY850:
-        $ ros2 launch xarm_moveit_config dual_uf850_moveit_realmove.launch.py robot_ip_1:=192.168.1.181 robot_ip_2:=192.168.1.182 [add_gripper:=true]
+        ros2 launch xarm_moveit_config dual_uf850_moveit_realmove.launch.py robot_ip_1:=192.168.1.181 robot_ip_2:=192.168.1.182 [add_gripper:=true]
         ```
 
 - ### 5.7 xarm_planner
     This package provides functions for controlling xArm (simulated or real arm) through moveit API  
 
     ```bash
-    $ cd ~/dev_ws/
+    cd ~/dev_ws/
     # 【simulated xArm】launch xarm_planner_node
-    $ ros2 launch xarm_planner xarm6_planner_fake.launch.py [add_gripper:=true]
+    ros2 launch xarm_planner xarm6_planner_fake.launch.py [add_gripper:=true]
     # 【real xArm】launch xarm_planner_node
-    $ ros2 launch xarm_planner xarm6_planner_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
+    ros2 launch xarm_planner xarm6_planner_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
 
     # 【simulated Lite6】launch xarm_planner_node
-    $ ros2 launch xarm_planner lite6_planner_fake.launch.py [add_gripper:=true]
+    ros2 launch xarm_planner lite6_planner_fake.launch.py [add_gripper:=true]
     # 【real Lite6】launch xarm_planner_node
-    $ ros2 launch xarm_planner lite6_planner_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
+    ros2 launch xarm_planner lite6_planner_realmove.launch.py robot_ip:=192.168.1.117 [add_gripper:=true]
 
     # 【simulated UFACTORY850】launch xarm_planner_node
-    $ ros2 launch xarm_planner uf850_planner_fake.launch.py [add_gripper:=true]
+    ros2 launch xarm_planner uf850_planner_fake.launch.py [add_gripper:=true]
     # 【real UFACTORY850】launch xarm_planner_node
-    $ ros2 launch xarm_planner uf850_planner_realmove.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
+    ros2 launch xarm_planner uf850_planner_realmove.launch.py robot_ip:=192.168.1.181 [add_gripper:=true]
 
     # In another terminal, run test program (control through API, specify 'robot_type' as 'xarm' or 'lite' or 'uf850')
-    $ ros2 launch xarm_planner test_xarm_planner_api_joint.launch.py dof:=6 robot_type:=<xarm | lite | uf850>
-    $ ros2 launch xarm_planner test_xarm_planner_api_pose.launch.py dof:=6 robot_type:=<xarm | lite | uf850>
+    ros2 launch xarm_planner test_xarm_planner_api_joint.launch.py dof:=6 robot_type:=<xarm | lite | uf850>
+    ros2 launch xarm_planner test_xarm_planner_api_pose.launch.py dof:=6 robot_type:=<xarm | lite | uf850>
     ```
 
     Below additional tests are just for xArm:
     ```bash
     # run test program（control through service）
-    $ ros2 launch xarm_planner test_xarm_planner_client_joint.launch.py dof:=6
-    $ ros2 launch xarm_planner test_xarm_planner_client_pose.launch.py dof:=6
+    ros2 launch xarm_planner test_xarm_planner_client_joint.launch.py dof:=6
+    ros2 launch xarm_planner test_xarm_planner_client_pose.launch.py dof:=6
 
     # run test program（control gripper through API）
-    $ ros2 launch xarm_planner test_xarm_gripper_planner_api_joint.launch.py dof:=6
+    ros2 launch xarm_planner test_xarm_gripper_planner_api_joint.launch.py dof:=6
 
     # run test program（control gripper through service）
-    $ ros2 launch xarm_planner test_xarm_gripper_planner_client_joint.launch.py dof:=6
+    ros2 launch xarm_planner test_xarm_gripper_planner_client_joint.launch.py dof:=6
     ```
 
 
@@ -379,28 +382,28 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     
     - Testing xarm on gazebo independently:
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For xArm (xarm6 here):
-        $ ros2 launch xarm_gazebo xarm6_beside_table_gazebo.launch.py
+        ros2 launch xarm_gazebo xarm6_beside_table_gazebo.launch.py
 
         # For Lite6:
-        $ ros2 launch xarm_gazebo lite6_beside_table_gazebo.launch.py
+        ros2 launch xarm_gazebo lite6_beside_table_gazebo.launch.py
 
         # For UFACTORY850:
-        $ ros2 launch xarm_gazebo uf850_beside_table_gazebo.launch.py
+        ros2 launch xarm_gazebo uf850_beside_table_gazebo.launch.py
         ```
 
     - Simulation with moveit+gazebo (xArm controlled by moveit).
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For xArm (xarm6 here):
-        $ ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py
+        ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py
 
         # For Lite6:
-        $ ros2 launch xarm_moveit_config lite6_moveit_gazebo.launch.py
+        ros2 launch xarm_moveit_config lite6_moveit_gazebo.launch.py
 
         # For UFACTORY850:
-        $ ros2 launch xarm_moveit_config uf850_moveit_gazebo.launch.py
+        ros2 launch xarm_moveit_config uf850_moveit_gazebo.launch.py
         ```
 - ### 5.9 xarm_moveit_servo
     This package serves as a demo for jogging xArm with devices such as joystick, through [moveit_servo](http://moveit2_tutorials.picknik.ai/doc/realtime_servo/realtime_servo_tutorial.html). 
@@ -414,23 +417,23 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         - buttons Y and A for controlling second last joint.  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # XBOX Wired -> joystick_type=1
         # XBOX Wireless -> joystick_type=2
         # For controlling simulated xArm:
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py joystick_type:=1
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py joystick_type:=1
         # Or controlling simulated Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py joystick_type:=1
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py joystick_type:=1
         # Or controlling simulated UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py joystick_type:=1
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py joystick_type:=1
 
 
         # For controlling real xArm: (use xArm 5 as example)
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5 joystick_type:=1
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5 joystick_type:=1
         # Or controlling real Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 joystick_type:=1
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 joystick_type:=1
         # Or controlling real UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181 joystick_type:=1
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181 joystick_type:=1
         ```
 
     - Controlling with __3Dconnexion SpaceMouse Wireless__:
@@ -439,41 +442,41 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         - Right button clicked for just ROLL/PITCH/YAW adjustment  
 
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For controlling simulated xArm:
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py joystick_type:=3
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py joystick_type:=3
         # Or controlling simulated Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py joystick_type:=3
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py joystick_type:=3
         # Or controlling simulated UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py joystick_type:=3
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py joystick_type:=3
 
         # For controlling real xArm: (use xArm 5 as example)
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5 joystick_type:=3
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5 joystick_type:=3
         # Or controlling real Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 joystick_type:=3
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 joystick_type:=3
         # Or controlling real UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181 joystick_type:=3
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181 joystick_type:=3
         ```
     
     - Controlling with __PC keyboard__:
         ```bash
-        $ cd ~/dev_ws/
+        cd ~/dev_ws/
         # For controlling simulated xArm:
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py dof:=6
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_fake.launch.py dof:=6
         # Or controlling simulated Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_fake.launch.py
         # Or controlling simulated UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_fake.launch.py
 
         # For controlling real xArm: (use xArm 5 as example)
-        $ ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5
+        ros2 launch xarm_moveit_servo xarm_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123 dof:=5
         # Or for controlling real Lite6:
-        $ ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123
+        ros2 launch xarm_moveit_servo lite6_moveit_servo_realmove.launch.py robot_ip:=192.168.1.123
         # Or for controlling real UFACTORY850:
-        $ ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181
+        ros2 launch xarm_moveit_servo uf850_moveit_servo_realmove.launch.py robot_ip:=192.168.1.181
 
         # Then in another terminal, run keyboad input node:
-        $ ros2 run xarm_moveit_servo xarm_keyboard_input
+        ros2 run xarm_moveit_servo xarm_keyboard_input
         ```
         Please note that Moveit Servo may consider the home position as singularity point, then try with joint motion first.  
 
@@ -483,38 +486,38 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     - #### 5.10.1 Installation of dependent packages:
         - First enter the workspace source directory:
             ```bash
-            $ cd ~/dev_ws/src/
+            cd ~/dev_ws/src/
             ```
         - ##### Install RealSense developer library and ROS package： 
             Please refer to the installation steps at [official webpage](https://github.com/IntelRealSense/realsense-ros/tree/ros2-master).
             ```bash
-            $ git clone -b ros2-master https://github.com/IntelRealSense/realsense-ros.git
+            git clone -b ros2-master https://github.com/IntelRealSense/realsense-ros.git
             ```
 
         - ##### Install 'aruco_ros', for hand-eye calibration：
             Refer to [official Github](https://github.com/pal-robotics/aruco_ros/tree/humble-devel):
             ```bash
-            $ git clone -b humble-devel https://github.com/pal-robotics/aruco_ros.git
+            git clone -b humble-devel https://github.com/pal-robotics/aruco_ros.git
             ```
         - ##### Install 'easy_handeye2', for hand-eye calibration：
             Refer to [official Github](https://github.com/marcoesposito1988/easy_handeye2):
             ```bash
-            $ git clone https://github.com/marcoesposito1988/easy_handeye2.git
+            git clone https://github.com/marcoesposito1988/easy_handeye2.git
             ``` 
         - ##### Install 'find_object_2d', for object detection：
             Refer to [official Github](https://github.com/introlab/find-object/tree/humble-devel):
             ```bash
-            $ sudo apt-get install ros-humble-find-object-2d
+            sudo apt-get install ros-humble-find-object-2d
             ```
         - ##### Install other dependencies：
             ```bash
-            $ cd ~/dev_ws/src
-            $ rosdep update
-            $ rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y
+            cd ~/dev_ws/src
+            rosdep update
+            rosdep install --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y
             ```
         - ##### Build the whole workspace：
             ```bash
-            $ colcon build
+            colcon build
             ```
 
     - #### 5.10.2 Hand-eye Calibration Demo：
@@ -522,11 +525,11 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
 
         ```bash 
         # xArm 5/6/7
-        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
         # Lite6
-        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=lite dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=lite dof:=6 robot_ip:=your_xArm_IP
         # UFACTORY850
-        $ ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=uf850 dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_robot_auto_calib.launch.py robot_type:=uf850 dof:=6 robot_ip:=your_xArm_IP
         ```
 
         Note: for xArm/UF850 produced **after August 2023**, kinematic calibration can be added to the URDF model, you can specify `kinematics_suffix` parameter for better accuracy.  
@@ -548,11 +551,11 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         Use moveit to drive xArm's motion，recommended for singularity and collision free execution, but will require a reliable network connection.  
         ```bash
         # xArm 5/6/7
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
         # Lite6
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
         # UFACTORY850
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_moveit_planner.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
 
         # The default calibration parameters are ~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
         # If you need to specify the startup parameter calib_filename, the calibration parameters recorded in the d435i_xarm_setup/config/{calib_filename}.calib file will be used
@@ -560,22 +563,22 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         If target object can be properly detected, to run the Grasping node:  
         ```bash
         # xArm 5/6/7
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF
+        ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=xarm dof:=your_xArm_DOF
         # Lite6
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=lite dof:=6
+        ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=lite dof:=6
         # UFACTORY850
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=uf850 dof:=6
+        ros2 launch d435i_xarm_setup grasp_node_robot_moveit_planner.launch.py robot_type=uf850 dof:=6
         ```
         For node program source code, refer to: d435i_xarm_setup/src/[findobj_grasp_moveit_planner.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_moveit_planner.cpp).  
 
         2.Alternatively, to drive xArm motion with ros service provided by 'xarm_api', in this way, real-time performance of network will not be required so strict as moveit way, but execution may fail in the middle if singularity or self-collision is about to occur. 
         ```bash
         # xArm 5/6/7
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF robot_ip:=your_xArm_IP
         # Lite6
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=lite dof:=6 robot_ip:=your_xArm_IP
         # UFACTORY850
-        $ ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
+        ros2 launch d435i_xarm_setup d435i_findobj2d_robot_api.launch.py robot_type=uf850 dof:=6 robot_ip:=your_xArm_IP
 
         # The default calibration parameters are ~/.ros2/easy_handeye2/calibrations/{robot_type}_rs_on_hand_calibration.calib
         # If you need to specify the startup parameter calib_filename, the calibration parameters recorded in the d435i_xarm_setup/config/{calib_filename}.calib file will be used
@@ -583,11 +586,11 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
         If target object can be properly detected, to run the Grasping node:  
         ```bash
         # xArm 5/6/7
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF
+        ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=xarm dof:=your_xArm_DOF
         # Lite6
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=lite dof:=6
+        ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=lite dof:=6
         # UFACTORY850
-        $ ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=uf850 dof:=6
+        ros2 launch d435i_xarm_setup grasp_node_robot_api.launch.py robot_type=uf850 dof:=6
         ```
         For node program source code, refer to: d435i_xarm_setup/src/[findobj_grasp_xarm_api.cpp](./xarm_vision/d435i_xarm_setup/src/findobj_grasp_xarm_api.cpp).  
 
@@ -598,7 +601,7 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     - #### 5.10.4 Adding RealSense D435i model to simulated xArm：
         For installation with camera stand provided by UFACTORY, the cam model can be attached by following modifications (use xarm7 as example):    
         ```bash
-        $ ros2 launch xarm_moveit_config xarm7_moveit_fake.launch add_realsense_d435i:=true
+        ros2 launch xarm_moveit_config xarm7_moveit_fake.launch add_realsense_d435i:=true
         ```
 
 ## 6. Instruction on major launch arguments
@@ -661,7 +664,7 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
     - __Example of adding customized end tool (Cylinder):__  
 
         ```bash
-        $ ros2 launch xarm_gazebo xarm6_beside_table_gazebo.launch.py add_other_geometry:=true geometry_type:=cylinder geometry_height:=0.075 geometry_radius:=0.045
+        ros2 launch xarm_gazebo xarm6_beside_table_gazebo.launch.py add_other_geometry:=true geometry_type:=cylinder geometry_height:=0.075 geometry_radius:=0.045
         ```
 
     For dual arm launch files(with ```dual_``` prefix), here are the total arguments that can be configured:  
