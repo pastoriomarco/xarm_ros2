@@ -5,7 +5,7 @@
   <xacro:macro name="lite_gripper_ros2_control" params="
       prefix:=''
       ros2_control_plugin:=''
-      isaac_cmd_topic:='/isaac_joint_commands'
+      isaac_cmd_topic:='/isaac_joint_commands_gripper'
       isaac_state_topic:='/isaac_joint_states'
     ">
 

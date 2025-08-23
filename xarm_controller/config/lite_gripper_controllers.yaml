@@ -8,3 +8,7 @@ lite_gripper_controller:
   ros__parameters:
     # The single drive joint for the pneumatic gripper
     joint: right_finger_joint
+    goal_tolerance: 0.004            # 
+    allow_stalling: true             # optional: treat contact as success
+    stall_velocity_threshold: 0.15   # tune to your sim
+    stall_timeout: 2.0               # seconds
