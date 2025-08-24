@@ -5,16 +5,16 @@
   <xacro:macro name="lite_gripper_ros2_control" params="
       prefix:=''
       ros2_control_plugin:=''
-      isaac_cmd_topic:='/isaac_joint_commands_gripper'
       isaac_state_topic:='/isaac_joint_states'
     ">
+    <!-- isaac_cmd_topic:='/isaac_joint_commands_gripper' -->
 
     <ros2_control name="${prefix}XArmGripperSystem" type="system">
       <hardware>
         <!-- Isaac SIM: topic-based joint bridge -->
         <xacro:if value="${ros2_control_plugin == 'isaac'}">
           <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
-          <param name="joint_commands_topic">${isaac_cmd_topic}</param>
+          <!-- <param name="joint_commands_topic">${isaac_cmd_topic}</param> -->
           <param name="joint_states_topic">${isaac_state_topic}</param>
         </xacro:if>
         <!-- Generic -->
