@@ -73,7 +73,7 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
     cd ~/dev_ws/src
     # DO NOT omit "--recursive"，or the source code of dependent submodule will not be downloaded.
     # Pay attention to the use of the -b parameter command branch, $ROS_DISTRO indicates the currently activated ROS version, if the ROS environment is not activated, you need to customize the specified branch (foxy/galactic/humble)
-    git clone https://github.com/xArm-Developer/xarm_ros2.git --recursive -b $ROS_DISTRO
+    git clone https://github.com/pastoriomarco/xarm_ros2.git --recursive -b $ROS_DISTRO
     ```
 
 - ### 4.3 Update "xarm_ros2" repository 
