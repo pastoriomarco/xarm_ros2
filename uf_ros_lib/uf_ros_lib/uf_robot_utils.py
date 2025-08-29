@@ -65,7 +65,7 @@ def merge_dict(dict1, dict2):
 
 
 def load_abspath_yaml(path):
-    if os.path.exists(path):
+    if path and os.path.exists(path):
         try:
             with open(path, 'r') as file:
                 return yaml.safe_load(file)
@@ -74,28 +74,36 @@ def load_abspath_yaml(path):
     return {}
 
 
-def generate_robot_api_params(robot_default_params_path, robot_user_params_path=None, ros_namespace='', node_name='ufactory_driver'):
-    if not os.path.exists(robot_user_params_path):
-        robot_user_params_path = None
-    if ros_namespace or (robot_user_params_path is not None and robot_default_params_path != robot_user_params_path):
-        ros2_control_params_yaml = load_abspath_yaml(robot_default_params_path)
-        ros2_control_user_params_yaml = load_abspath_yaml(robot_user_params_path)
+def generate_robot_api_params(default_robot_api_params_path, user_robot_api_params_path=None, ros_namespace='', node_name='ufactory_driver', extra_robot_api_params_path=None):
+    if not user_robot_api_params_path or not os.path.exists(user_robot_api_params_path):
+        user_robot_api_params_path = None
+    if not extra_robot_api_params_path or not os.path.exists(extra_robot_api_params_path):
+        extra_robot_api_params_path = None
+    if ros_namespace or (user_robot_api_params_path is not None and user_robot_api_params_path != default_robot_api_params_path) or (extra_robot_api_params_path is not None and extra_robot_api_params_path != default_robot_api_params_path):
+        ronbot_api_params_yaml = load_abspath_yaml(default_robot_api_params_path)
+        user_params_yaml = load_abspath_yaml(user_robot_api_params_path)
+        extra_params_yaml = load_abspath_yaml(extra_robot_api_params_path)
         # change xarm_driver to ufactory_driver
-        if 'xarm_driver' in ros2_control_params_yaml and node_name not in ros2_control_params_yaml:
-            ros2_control_params_yaml[node_name] = ros2_control_params_yaml.pop('xarm_driver')
-        if 'xarm_driver' in ros2_control_user_params_yaml and node_name not in ros2_control_user_params_yaml:
-            ros2_control_user_params_yaml[node_name] = ros2_control_user_params_yaml.pop('xarm_driver')
-        merge_dict(ros2_control_params_yaml, ros2_control_user_params_yaml)
+        if 'xarm_driver' in ronbot_api_params_yaml and node_name not in ronbot_api_params_yaml:
+            ronbot_api_params_yaml[node_name] = ronbot_api_params_yaml.pop('xarm_driver')
+        if 'xarm_driver' in user_params_yaml and node_name not in user_params_yaml:
+            user_params_yaml[node_name] = user_params_yaml.pop('xarm_driver')
+        if 'xarm_driver' in extra_params_yaml and node_name not in extra_params_yaml:
+            extra_params_yaml[node_name] = extra_params_yaml.pop('xarm_driver')
+        if user_params_yaml:
+            merge_dict(ronbot_api_params_yaml, user_params_yaml)
+        if extra_params_yaml:
+            merge_dict(ronbot_api_params_yaml, extra_params_yaml)
         if ros_namespace:
-            xarm_params_yaml = {
-                ros_namespace: ros2_control_params_yaml
+            robot_params_yaml = {
+                ros_namespace: ronbot_api_params_yaml
             }
         else:
-            xarm_params_yaml = ros2_control_params_yaml
+            robot_params_yaml = ronbot_api_params_yaml
         with NamedTemporaryFile(mode='w', prefix='launch_params_', delete=False) as h:
-            yaml.dump(xarm_params_yaml, h, default_flow_style=False)
+            yaml.dump(robot_params_yaml, h, default_flow_style=False)
             return h.name
-    return robot_default_params_path
+    return default_robot_api_params_path
 
 
 def load_yaml(package_name, *file_path):
@@ -112,26 +120,78 @@ def load_yaml(package_name, *file_path):
         return {}
 
 
-def add_prefix_to_ros2_control_params(prefix, ros2_control_params):
+def add_prefix_to_ros2_control_params(prefix: str, ros2_control_params: dict) -> None:
+    """
+    Prefix controller names and joint names in a ros2_control params dict for a dual-arm setup.
+
+    - Adds `prefix` (e.g. "L_" / "R_") to all controller *sections* and to their entries under
+      controller_manager.ros__parameters, so spawner names and controller types stay aligned.
+    - Prefixes both "joints" (list) and "joint" (singular) parameters.
+    - Renames per-joint keys inside "constraints" if they reference the (now-prefixed) joint names.
+    - IMPORTANT: keeps 'joint_state_broadcaster' unprefixed to match the spawner/launch behavior.
+
+    Mutates `ros2_control_params` in place.
+    """
     if not prefix:
         return
+
+    SKIP_RENAME = {'joint_state_broadcaster'}  # never prefix this one
+
+    # 1) Rename controller *entries* under controller_manager.ros__parameters
+    cm = ros2_control_params.get('controller_manager', {}).get('ros__parameters', {})
+    if isinstance(cm, dict):
+        for name in list(cm.keys()):
+            # skip non-controller keys and broadcaster
+            if name in ('update_rate', 'use_sim_time') or name in SKIP_RENAME:
+                continue
+            if not name.startswith(prefix):
+                cm[f'{prefix}{name}'] = cm.pop(name)
+
+    # 2) Rename top-level controller sections and prefix their joints / constraints
     for name in list(ros2_control_params.keys()):
-        if name == 'controller_manager':
+        if name == 'controller_manager' or name in SKIP_RENAME:
             continue
-        ros__parameters = ros2_control_params[name].get('ros__parameters', {})
-        joints = ros__parameters.get('joints', [])
-        constraints = ros__parameters.get('constraints', {})
-        for i, joint in enumerate(joints):
-            for j, key in enumerate(constraints.keys()):
-                if key == joint:
-                    constraints['{}{}'.format(prefix, key)] = constraints.pop(key)
-                    break
-            joints[i] = '{}{}'.format(prefix, joint)
-        new_name = '{}{}'.format(prefix, name)
-        ros2_control_params[new_name] = ros2_control_params.pop(name)
-        controller_manager_ros__parameters = ros2_control_params.get('controller_manager', {}).get('ros__parameters', {})
-        if name in controller_manager_ros__parameters:
-            controller_manager_ros__parameters[new_name] = controller_manager_ros__parameters.pop(name)
+
+        node = ros2_control_params.get(name)
+        if not isinstance(node, dict):
+            continue
+
+        ros_params = node.get('ros__parameters', {})
+        if isinstance(ros_params, dict):
+            # ----- joints: list -----
+            if 'joints' in ros_params and isinstance(ros_params['joints'], list):
+                original_joints = list(ros_params['joints'])
+                prefixed_joints = [
+                    j if str(j).startswith(prefix) else f'{prefix}{j}' for j in original_joints
+                ]
+                ros_params['joints'] = prefixed_joints
+
+                # Remap constraints keys that match old joint names
+                cons = ros_params.get('constraints', {})
+                if isinstance(cons, dict):
+                    mapping = {old: new for old, new in zip(original_joints, prefixed_joints)}
+                    for k in list(cons.keys()):
+                        if k in mapping and mapping[k] not in cons:
+                            cons[mapping[k]] = cons.pop(k)
+
+            # ----- joint: singular -----
+            if 'joint' in ros_params and isinstance(ros_params['joint'], str):
+                orig = ros_params['joint']
+                newj = orig if orig.startswith(prefix) else f'{prefix}{orig}'
+                ros_params['joint'] = newj
+
+                # Remap constraints key if it referenced the old joint name
+                cons = ros_params.get('constraints', {})
+                if isinstance(cons, dict) and orig in cons and newj not in cons:
+                    cons[newj] = cons.pop(orig)
+
+            # write back (in case we replaced dict objects)
+            node['ros__parameters'] = ros_params
+
+        # Rename the controller section itself (skip if already prefixed)
+        if not name.startswith(prefix):
+            ros2_control_params[f'{prefix}{name}'] = ros2_control_params.pop(name)
+
 
 
 def generate_ros2_control_params_temp_file(ros2_control_params_path, prefix='', add_gripper=False, add_bio_gripper=False, ros_namespace='', update_rate=None, robot_type='xarm', use_sim_time=False):

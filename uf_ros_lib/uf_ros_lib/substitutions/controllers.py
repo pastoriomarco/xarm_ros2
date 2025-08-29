@@ -72,7 +72,8 @@ class ControllersYAML(BaseYamlSubstitution):
         controllers_yaml = load_yaml(file_path)
         controllers_yaml = controllers_yaml if controllers_yaml else {}
 
-        if robot_type != 'lite' and add_gripper:
+        # if robot_type != 'lite' and add_gripper:
+        if add_gripper:
             gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:
@@ -180,7 +181,8 @@ class DualControllersYAML(BaseYamlSubstitution):
         controllers_yaml_1 = load_yaml(file_path_1)
         controllers_yaml_1 = controllers_yaml_1 if controllers_yaml_1 else {}
 
-        if robot_type_1 != 'lite' and add_gripper_1:
+        # if robot_type_1 != 'lite' and add_gripper_1:
+        if add_gripper_1:
             gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:
@@ -208,8 +210,9 @@ class DualControllersYAML(BaseYamlSubstitution):
         controllers_yaml_2 = load_yaml(file_path_2)
         controllers_yaml_2 = controllers_yaml_2 if controllers_yaml_2 else {}
 
-        if robot_type_2 != 'lite' and add_gripper_2:
-            gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / controllers_name)
+        # if robot_type_2 != 'lite' and add_gripper_2:
+        if add_gripper_2:
+            gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:
                     if name in gripper_controllers_yaml:
@@ -327,7 +330,8 @@ class TripleControllersYAML(BaseYamlSubstitution):
         file_path_3 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_3 / controllers_name)
         
         controllers_yaml_1 = load_yaml(file_path_1) or {}
-        if robot_type_1 != 'lite' and add_gripper_1:
+        # if robot_type_1 != 'lite' and add_gripper_1:
+        if add_gripper_1:
             gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:
@@ -353,7 +357,8 @@ class TripleControllersYAML(BaseYamlSubstitution):
                     controllers_yaml_1['{}{}'.format(prefix_1, name)] = controllers_yaml_1.pop(name)
         
         controllers_yaml_2 = load_yaml(file_path_2) or {}
-        if robot_type_2 != 'lite' and add_gripper_2:
+        # if robot_type_2 != 'lite' and add_gripper_2:
+        if add_gripper_2:
             gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:
@@ -379,7 +384,8 @@ class TripleControllersYAML(BaseYamlSubstitution):
                     controllers_yaml_2['{}{}'.format(prefix_2, name)] = controllers_yaml_2.pop(name)
         
         controllers_yaml_3 = load_yaml(file_path_3) or {}
-        if robot_type_3 != 'lite' and add_gripper_3:
+        # if robot_type_3 != 'lite' and add_gripper_3:
+        if add_gripper_3:
             gripper_controllers_yaml = load_yaml(self.__package_path / 'config' / '{}_gripper'.format(robot_type_3) / controllers_name)
             if gripper_controllers_yaml:
                 for name in gripper_controllers_yaml['controller_names']:

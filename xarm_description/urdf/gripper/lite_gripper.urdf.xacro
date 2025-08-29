@@ -1,16 +1,19 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://ros.org/wiki/xacro" name="uflite_gripper">
-  <xacro:macro name="uflite_gripper_urdf" params="prefix:='' attach_to:='' attach_xyz:='0 0 0' attach_rpy:='0 0 0' ">
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="uf_lite_gripper">
+
+  <xacro:macro name="lite_gripper_urdf" params="prefix:='' attach_to:='' attach_xyz:='0 0 0' attach_rpy:='0 0 0' ">
     
+    <!-- Gripper Fix Joint -->
     <xacro:unless value="${attach_to == ''}">
       <joint name="${prefix}gripper_fix" type="fixed">
         <parent link="${attach_to}"/>
-        <child link="${prefix}uflite_gripper_link"/>
+        <child link="${prefix}lite_gripper_base_link"/>
         <origin xyz="${attach_xyz}" rpy="${attach_rpy}"/>
       </joint>
     </xacro:unless>
     
-    <link name="${prefix}uflite_gripper_link">
+    <!-- Base link of the gripper -->
+    <link name="${prefix}lite_gripper_base_link">
       <inertial>
         <origin xyz="0.0 0.0 0.030" rpy="0 0 0" />
         <mass value="0.28" />
@@ -19,21 +22,77 @@
           iyy="0.00033072" iyz="-1.0975E-05" izz="0.00025642" />
       </inertial>
       <xacro:common_link_visual 
-        mesh_filename="gripper/lite/visual/gripper_lite"  
+        mesh_filename="gripper/lite/visual/gripper_lite_body"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0"
         material_name="${prefix}White" />
       <xacro:common_link_collision 
-        mesh_filename="gripper/lite/collision/gripper_lite"  
+        mesh_filename="gripper/lite/collision/gripper_lite_body"  
         origin_xyz="0 0 0" 
         origin_rpy="0 0 0" />
     </link>
 
-    <link name="${prefix}link_tcp" />
+    <!-- Left Finger -->
+    <link name="${prefix}lite_gripper_left_finger">
+      <inertial>
+        <origin xyz="0 0.0078 0.0543" rpy="0 0 0" />
+        <mass value="0.012105" />
+        <inertia
+          ixx="3.7322E-06" ixy="-4.1705E-06" ixz="4.0142E-06"
+          iyy="1.744E-05" iyz="-1.2237E-06" izz="1.7775E-05" />
+      </inertial>
+      <xacro:common_link_visual 
+        mesh_filename="gripper/lite/visual/gripper_lite_finger"
+        origin_xyz="0 0.0078 0.0543" 
+        origin_rpy="0 0 3.14159"
+        material_name="${prefix}White" />
+      <xacro:common_link_collision 
+        mesh_filename="gripper/lite/collision/gripper_lite_finger"  
+        origin_xyz="0 0.0078 0.0543" 
+        origin_rpy="0 0 3.14159" />
+    </link>
+    <joint name="${prefix}left_finger_joint" type="prismatic">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <parent link="${prefix}lite_gripper_base_link"/>
+      <child link="${prefix}lite_gripper_left_finger"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="0.0" upper="0.0081" effort="10000" velocity="0.1"/>
+      <mimic joint="${prefix}right_finger_joint" multiplier="1" offset="0" />
+    </joint>
+    
+    <!-- Right Finger -->
+    <link name="${prefix}lite_gripper_right_finger">
+      <inertial>
+        <origin xyz="0 -0.0078 0.0543" rpy="0 0 0" />
+        <mass value="0.012068" />
+        <inertia
+          ixx="4.1413E-06" ixy="3.9682E-06" ixz="4.5734E-06"
+          iyy="1.6115E-05" iyz="1.6711E-06" izz="1.6032E-05" />
+      </inertial>
+      <xacro:common_link_visual 
+        mesh_filename="gripper/lite/visual/gripper_lite_finger"  
+        origin_xyz="0 -0.0078 0.0543" 
+        origin_rpy="0 0 0"
+        material_name="${prefix}White" />
+      <xacro:common_link_collision 
+        mesh_filename="gripper/lite/collision/gripper_lite_finger"  
+        origin_xyz="0 -0.0078 0.0543" 
+        origin_rpy="0 0 0" />
+    </link>
+    <joint name="${prefix}right_finger_joint" type="prismatic">
+      <parent link="${prefix}lite_gripper_base_link"/>
+      <child link="${prefix}lite_gripper_right_finger"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="0.0" upper="0.0081" effort="10000" velocity="0.1"/>
+    </joint>
 
+
+    <!-- TCP Link and Joint -->
+    <link name="${prefix}link_tcp" />
     <joint name="${prefix}joint_tcp" type="fixed">
       <origin xyz="0 0 0.0836" rpy="0 0 0" />
-      <parent link="${prefix}uflite_gripper_link" />
+      <parent link="${prefix}lite_gripper_base_link" />
       <child link="${prefix}link_tcp" />
     </joint>
 

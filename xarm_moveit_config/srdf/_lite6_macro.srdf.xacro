@@ -43,21 +43,52 @@
       <joint name="${prefix}joint5" value="0" />
       <joint name="${prefix}joint6" value="0" />
     </group_state>
+    <group_state name="hold-up" group="${prefix}lite6">
+      <joint name="${prefix}joint1" value="0" />
+      <joint name="${prefix}joint2" value="0" />
+      <joint name="${prefix}joint3" value="0" />
+      <joint name="${prefix}joint4" value="0" />
+      <joint name="${prefix}joint5" value="-1.5708" />
+      <joint name="${prefix}joint6" value="0" />
+    </group_state>
 
     <!-- gripper -->
     <xacro:if value="${add_gripper}">
-      <!-- <group name="${prefix}lite_gripper">
-        <joint name="${prefix}gripper_fix" />
-        <joint name="${prefix}joint_tcp" />
-      </group> -->
+      <group name="${prefix}lite_gripper">
+        <link name="${prefix}lite_gripper_base_link" />
+        <link name="${prefix}lite_gripper_left_finger" />
+        <link name="${prefix}lite_gripper_right_finger" />
+        <link name="${prefix}link_tcp" />
+        <joint name="${prefix}left_finger_joint" />
+        <joint name="${prefix}right_finger_joint" />
+      </group>
+      <group_state name="open" group="${prefix}lite_gripper">
+        <joint name="${prefix}left_finger_joint" value="0.0081" />
+        <joint name="${prefix}right_finger_joint" value="0.0081" />
+      </group_state>
+      <group_state name="close" group="${prefix}lite_gripper">
+        <joint name="${prefix}left_finger_joint" value="0" />
+        <joint name="${prefix}right_finger_joint" value="0" />
+      </group_state>
       <!-- END EFFECTOR, Purpose, Represent information about an end effector. -->
-      <!-- <end_effector name="${prefix}lite_gripper" parent_link="${prefix}link_tcp" group="${prefix}lite_gripper" /> -->
-      <passive_joint name="${prefix}gripper_fix" />
-      <!--PASSIVE JOINT, Purpose, this element is used to mark joints that are not actuated-->
+      <end_effector name="${prefix}lite_gripper" parent_link="${prefix}link_tcp" group="${prefix}lite_gripper" />
       <!-- DISABLE COLLISIONS, By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
-      <disable_collisions link1="${prefix}link5" link2="${prefix}uflite_gripper_link" reason="Never" />
-      <disable_collisions link1="${prefix}link6" link2="${prefix}uflite_gripper_link" reason="Never" />
-      <disable_collisions link1="${prefix}link_eef" link2="${prefix}uflite_gripper_link" reason="Adjacent" />
+      <disable_collisions link1="${prefix}lite_gripper_left_finger" link2="${prefix}lite_gripper_base_link" reason="Adjacent" />
+      <disable_collisions link1="${prefix}lite_gripper_right_finger" link2="${prefix}lite_gripper_base_link" reason="Adjacent" />
+      <disable_collisions link1="${prefix}lite_gripper_left_finger" link2="${prefix}lite_gripper_right_finger" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_left_finger" link2="${prefix}link4" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_left_finger" link2="${prefix}link5" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_left_finger" link2="${prefix}link6" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_right_finger" link2="${prefix}link4" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_right_finger" link2="${prefix}link5" reason="Never" />
+      <disable_collisions link1="${prefix}lite_gripper_right_finger" link2="${prefix}link6" reason="Never" />
+      
+      <disable_collisions link1="${prefix}link6" link2="${prefix}lite_gripper_base_link" reason="Adjacent" />
+      <disable_collisions link1="${prefix}link5" link2="${prefix}lite_gripper_base_link" reason="Never" />
+
+      <disable_collisions link1="${prefix}link_eef" link2="${prefix}lite_gripper_left_finger" reason="Never" />
+      <disable_collisions link1="${prefix}link_eef" link2="${prefix}lite_gripper_right_finger" reason="Never" />
+      <disable_collisions link1="${prefix}link_eef" link2="${prefix}lite_gripper_base_link" reason="Adjacent" />
     </xacro:if>
 
     <!-- vacuum gripper -->
