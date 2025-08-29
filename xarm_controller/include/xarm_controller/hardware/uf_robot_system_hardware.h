@@ -20,6 +20,7 @@
 // #include "rclcpp_lifecycle/state.hpp"
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
+#include "hardware_interface/types/hardware_component_interface_params.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 // #include "hardware_interface/visibility_control.h"
@@ -37,7 +38,7 @@ namespace uf_robot_hardware
     public:
         RCLCPP_SHARED_PTR_DEFINITIONS(UFRobotSystemHardware)
 
-        CallbackReturn on_init(const hardware_interface::HardwareInfo& info) final;
+        CallbackReturn on_init(const hardware_interface::HardwareComponentInterfaceParams& params) final;
         std::vector<hardware_interface::StateInterface> export_state_interfaces() final;
 
         std::vector<hardware_interface::CommandInterface> export_command_interfaces() final;

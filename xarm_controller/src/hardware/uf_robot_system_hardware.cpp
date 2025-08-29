@@ -158,12 +158,12 @@ namespace uf_robot_hardware
         joint_state_msg_ = xarm_driver_.get_joint_states();
     }
 
-    CallbackReturn UFRobotSystemHardware::on_init(const hardware_interface::HardwareInfo& info)
+    CallbackReturn UFRobotSystemHardware::on_init(const hardware_interface::HardwareComponentInterfaceParams& params)
     {
-        if (hardware_interface::SystemInterface::on_init(info) != CallbackReturn::SUCCESS) {
+        if (hardware_interface::SystemInterface::on_init(params) != CallbackReturn::SUCCESS) {
             return CallbackReturn::ERROR;
         }
-        info_ = info;
+        info_ = info_ = params.hardware_info;
         velocity_control_ = false;
         read_code_ = 0;
         write_code_ = 0;
@@ -184,6 +184,7 @@ namespace uf_robot_hardware
         velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
         position_cmds_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
         velocity_cmds_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+
 
         for (const hardware_interface::ComponentInfo & joint : info_.joints) {
             bool has_pos_cmd_interface = false;
