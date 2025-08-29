@@ -60,7 +60,8 @@ include_directories(
 
 add_library(xarm_joystick_input SHARED src/xarm_joystick_input.cpp)
 ament_target_dependencies(xarm_joystick_input ${THIS_PACKAGE_INCLUDE_DEPENDS})
-rclcpp_components_register_nodes(xarm_joystick_input "xarm_moveit_servo::JoyToServoPub")
+# rclcpp_components_register_nodes(xarm_joystick_input "xarm_moveit_servo::JoyToServoPub")
+rclcpp_components_register_node(xarm_joystick_input PLUGIN "xarm_moveit_servo::JoyToServoPub" EXECUTABLE xarm_joystick_input_node)
 
 add_executable(xarm_keyboard_input
   src/xarm_keyboard_input.cpp
@@ -70,6 +71,7 @@ ament_target_dependencies(xarm_keyboard_input ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 install(TARGETS
   xarm_joystick_input
+  xarm_joystick_input_node
   xarm_keyboard_input
   EXPORT export_${PROJECT_NAME}
   LIBRARY DESTINATION lib

@@ -38,8 +38,8 @@
       </plugin> -->
       <xacro:property name="wheel_radius" value="0.06"/>
       <xacro:property name="wheel_joint_y" value="0.19"/>
-      <plugin name="differential_drive_controller" 
-              filename="libgazebo_ros_diff_drive.so">                
+      <plugin name="gz::sim::systems::DiffDrive" 
+              filename="libgz-sim-diff-drive-system">                
         <update_rate>30</update_rate>
         <left_joint>left_wheel_joint</left_joint>
         <right_joint>right_wheel_joint</right_joint>
