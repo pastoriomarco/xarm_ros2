@@ -17,11 +17,8 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(control_toolbox REQUIRED)
-find_package(controller_manager REQUIRED)
-find_package(gz_ros2_control REQUIRED)
-find_package(ros_gz_sim REQUIRED)
+find_package(gz-sim8 REQUIRED)
+find_package(sdformat14 REQUIRED)
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -38,35 +35,27 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-# include_directories(
-#   include
-#   ${ament_INCLUDE_DIRS}
-#   ${GAZEBO_INCLUDE_DIRS}
-# )
+include_directories(
+  include
+  ${ament_INCLUDE_DIRS}
+)
 
-# link_directories(${GAZEBO_LIBRARY_DIRS})
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
+add_library(gazebo_mimic_joint_plugin SHARED
+  src/mimic_joint_plugin.cpp
+)
 
-# add_library(gazebo_mimic_joint_plugin SHARED src/mimic_joint_plugin.cpp)
-# ament_target_dependencies(gazebo_mimic_joint_plugin
-#   control_toolbox
-#   controller_manager
-#   gazebo_ros
-# )
-# target_link_libraries(gazebo_mimic_joint_plugin ${ament_LIBRARIES} ${GAZEBO_LIBRARIES})
+# Set C++ standard
+target_compile_features(gazebo_mimic_joint_plugin PRIVATE cxx_std_17)
 
-# install(
-#   DIRECTORY include/
-#   DESTINATION include
-# )
+# Link dependencies
+target_link_libraries(gazebo_mimic_joint_plugin
+  gz-sim8::gz-sim8
+)
 
-# install(TARGETS
-# gazebo_mimic_joint_plugin
-#   ARCHIVE DESTINATION lib
-#   LIBRARY DESTINATION lib
-#   RUNTIME DESTINATION bin
-# )
-
+# Install the plugin library
+install(TARGETS gazebo_mimic_joint_plugin
+  DESTINATION lib
+)
 
 install(DIRECTORY
   worlds

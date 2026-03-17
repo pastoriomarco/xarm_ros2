@@ -36,9 +36,9 @@ def generate_launch_description():
     geometry_mesh_tcp_rpy = LaunchConfiguration('geometry_mesh_tcp_rpy', default='"0 0 0"')
     
     # robot gazebo launch
-    # xarm_gazebo/launch/_robot_beside_table_gz.launch.py
+    # xarm_gazebo/launch/_robot_beside_table_gazebo.launch.py
     robot_gazobo_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([ThisLaunchFileDir(), '/_robot_beside_table_gz.launch.py']),
+        PythonLaunchDescriptionSource([ThisLaunchFileDir(), '/_robot_beside_table_gazebo.launch.py']),
         launch_arguments={
             'prefix': prefix,
             'hw_ns': hw_ns,
@@ -49,6 +49,7 @@ def generate_launch_description():
             'add_vacuum_gripper': add_vacuum_gripper,
             'dof': '7',
             'robot_type': 'xarm',
+            'gz_type': 'gz',
             'add_realsense_d435i': add_realsense_d435i,
             'add_other_geometry': add_other_geometry,
             'geometry_type': geometry_type,
