@@ -99,10 +99,12 @@ class PlanningPipelinesYAML(BaseYamlSubstitution):
             parameter_file = self.__package_path / 'config' / robot_name / filename
         else:
             parameter_file = self.__package_path / self.__config_folder / filename
-        pipeline_planning_yaml = load_yaml(parameter_file)
-        pipeline_planning_yaml = pipeline_planning_yaml if pipeline_planning_yaml else {}
+        pipeline_planning_yaml = (
+            load_yaml(parameter_file) if parameter_file.exists() else {}
+        )
+        pipeline_planning_yaml = pipeline_planning_yaml or {}
 
-        if robot_type != 'lite' and add_gripper:
+        if add_gripper:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
@@ -253,9 +255,9 @@ class DualPlanningPipelinesYAML(BaseYamlSubstitution):
         # else:
         #     planning_yaml = {}
 
-        planning_yaml_1 = load_yaml(file_path_1)
-        planning_yaml_1 = planning_yaml_1 if planning_yaml_1 else {}
-        if robot_type_1 != 'lite' and add_gripper_1:
+        planning_yaml_1 = load_yaml(file_path_1) if file_path_1.exists() else {}
+        planning_yaml_1 = planning_yaml_1 or {}
+        if add_gripper_1:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
@@ -272,9 +274,9 @@ class DualPlanningPipelinesYAML(BaseYamlSubstitution):
                 if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
                     planning_yaml_1['{}{}'.format(prefix_1, name)] = planning_yaml_1.pop(name)
         
-        planning_yaml_2 = load_yaml(file_path_2)
-        planning_yaml_2 = planning_yaml_2 if planning_yaml_2 else {}
-        if robot_type_2 != 'lite' and add_gripper_2:
+        planning_yaml_2 = load_yaml(file_path_2) if file_path_2.exists() else {}
+        planning_yaml_2 = planning_yaml_2 or {}
+        if add_gripper_2:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / filename
             if parameter_file.exists():
                 gripper_planning_yaml = load_yaml(parameter_file)
@@ -394,7 +396,7 @@ class TriplePlanningPipelinesYAML(BaseYamlSubstitution):
         else:
             planning_yaml = {}
 
-        planning_yaml_1 = load_yaml(file_path_1) or {}
+        planning_yaml_1 = load_yaml(file_path_1) if file_path_1.exists() else {}
         if add_gripper_1:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_1) / filename
             if parameter_file.exists():
@@ -412,7 +414,7 @@ class TriplePlanningPipelinesYAML(BaseYamlSubstitution):
                 if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
                     planning_yaml_1['{}{}'.format(prefix_1, name)] = planning_yaml_1.pop(name)
         
-        planning_yaml_2 = load_yaml(file_path_2) or {}
+        planning_yaml_2 = load_yaml(file_path_2) if file_path_2.exists() else {}
         if add_gripper_2:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_2) / filename
             if parameter_file.exists():
@@ -430,7 +432,7 @@ class TriplePlanningPipelinesYAML(BaseYamlSubstitution):
                 if pipeline == 'ompl' and name != 'planner_configs' and name not in planning_yaml:
                     planning_yaml_2['{}{}'.format(prefix_2, name)] = planning_yaml_2.pop(name)
         
-        planning_yaml_3 = load_yaml(file_path_3) or {}
+        planning_yaml_3 = load_yaml(file_path_3) if file_path_3.exists() else {}
         if add_gripper_3:
             parameter_file = self.__package_path / 'config' / '{}_gripper'.format(robot_type_3) / filename
             if parameter_file.exists():

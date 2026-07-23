@@ -350,7 +350,7 @@ def launch_setup(context, *args, **kwargs):
     for controller in [
         '{}{}_traj_controller'.format(prefix_1.perform(context), xarm_type_1),
         '{}{}_traj_controller'.format(prefix_2.perform(context), xarm_type_2),
-        '{}{}_traj_controller'.format(prefix_2.perform(context), xarm_type_3),
+        '{}{}_traj_controller'.format(prefix_3.perform(context), xarm_type_3),
     ]:
         controller_nodes.append(Node(
             package='controller_manager',

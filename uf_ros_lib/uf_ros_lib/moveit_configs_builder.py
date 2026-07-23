@@ -152,6 +152,26 @@ from uf_ros_lib.substitutions.kinematics import KinematicsYAML, DualKinematicsYA
 from uf_ros_lib.substitutions.controllers import ControllersYAML, DualControllersYAML, TripleControllersYAML
 from uf_ros_lib.substitutions.planning_pipelines import get_pattern_matches, PlanningPipelinesYAML, DualPlanningPipelinesYAML, TriplePlanningPipelinesYAML
 
+
+def _planning_pipeline_names(package_path, config_folders, pipelines, load_all):
+    """Return deterministic pipeline names for static and deferred builders."""
+    if pipelines is not None:
+        return list(dict.fromkeys(pipelines))
+
+    planning_pattern = re.compile('^(.*)_planning.yaml$')
+    discovered = []
+    for config_folder in config_folders:
+        discovered.extend(get_pattern_matches(config_folder, planning_pattern))
+    if load_all:
+        discovered.extend(
+            get_pattern_matches(
+                package_path / 'config' / 'moveit_configs',
+                planning_pattern,
+            )
+        )
+    return sorted(set(discovered)) if discovered else ['ompl']
+
+
 try:
     from moveit_configs_utils import MoveItConfigs
 except Exception as e:
@@ -457,7 +477,7 @@ class MoveItConfigsBuilder(ParameterBuilder):
                 file_path = self._package_path / file_path
                 joint_limits = load_yaml(file_path) if file_path else {}
             joint_limits = joint_limits if joint_limits else {}
-            if self.__robot_type != 'lite' and self.__add_gripper in ('True', 'true'):
+            if self.__add_gripper in ('True', 'true'):
                 gripper_joint_limits_yaml = load_yaml(self._package_path / 'config' / '{}_gripper'.format(self.__robot_type) / 'joint_limits.yaml')
                 if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
                     joint_limits['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
@@ -673,10 +693,12 @@ class MoveItConfigsBuilder(ParameterBuilder):
                 config_folder = self._package_path / 'config' / robot_name
             else:
                 config_folder = self._package_path / config_folder
-            if pipelines is None:
-                planning_pattern = re.compile('^(.*)_planning.yaml$')
-                pipelines = get_pattern_matches(config_folder, planning_pattern)
-            pipelines = list(set(pipelines))
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [config_folder],
+                pipelines,
+                load_all,
+            )
              # Define default pipeline as needed
             if not default_planning_pipeline:
                 if not pipelines or 'ompl' in pipelines:
@@ -711,7 +733,7 @@ class MoveItConfigsBuilder(ParameterBuilder):
                 else:
                     pipeline_planning_yaml = {}
                 
-                if self.__robot_type != 'lite' and self.__add_gripper in ('True', 'true'):
+                if self.__add_gripper in ('True', 'true'):
                     parameter_file = self._package_path / 'config' / '{}_gripper'.format(self.__robot_type) / filename
                     if parameter_file.exists():
                         gripper_planning_yaml = load_yaml(parameter_file)
@@ -758,7 +780,12 @@ class MoveItConfigsBuilder(ParameterBuilder):
             #             'start_state_max_bounds_error': 0.1,
             #         })
         else:
-            pipelines = list(set(pipelines)) if pipelines else ['ompl']
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [],
+                pipelines,
+                load_all,
+            )
             default_planning_pipeline = default_planning_pipeline if default_planning_pipeline else 'ompl'
             if default_planning_pipeline not in pipelines:
                 raise RuntimeError(
@@ -1165,7 +1192,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
         """
         key = self.__robot_description + '_kinematics'
 
-        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_dof_2, self.__robot_dof_1, self.__robot_dof_2]
+        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_type_2, self.__robot_dof_1, self.__robot_dof_2]
         if all(isinstance(value, str) for value in params):
             robot_name_1 = '{}{}'.format(self.__robot_type_1, self.__robot_dof_1 if self.__robot_type_1 == 'xarm' else '6' if self.__robot_type_1 == 'lite' else '')
             robot_name_2 = '{}{}'.format(self.__robot_type_2, self.__robot_dof_2 if self.__robot_type_2 == 'xarm' else '6' if self.__robot_type_2 == 'lite' else '')
@@ -1214,7 +1241,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
         :return: Instance of MoveItConfigsBuilder with robot_description_planning loaded.
         """
         key = self.__robot_description + '_planning'
-        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_dof_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2]
+        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_type_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2]
 
         if all(isinstance(value, str) for value in params):
             robot_name_1 = '{}{}'.format(self.__robot_type_1, self.__robot_dof_1 if self.__robot_type_1 == 'xarm' else '6' if self.__robot_type_1 == 'lite' else '')
@@ -1247,7 +1274,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
             
             # if self.__robot_type_2 != 'lite' and self.__add_gripper_2 in ('True', 'true'):
             if self.__add_gripper_2 in ('True', 'true'):
-                gripper_joint_limits_yaml = load_yaml(self._package_path / 'config' / '{}_gripper'.format(self.__robot_type_1) / 'joint_limits.yaml')
+                gripper_joint_limits_yaml = load_yaml(self._package_path / 'config' / '{}_gripper'.format(self.__robot_type_2) / 'joint_limits.yaml')
                 if gripper_joint_limits_yaml and 'joint_limits' in gripper_joint_limits_yaml:
                     joint_limits_2['joint_limits'].update(gripper_joint_limits_yaml['joint_limits'])
             elif self.__robot_type_2 != 'lite' and self.__add_bio_gripper_2 in ('True', 'true'):
@@ -1318,7 +1345,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
         """
         controllers_name = controllers_name if controllers_name else self.__controllers_name
         
-        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_dof_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2, controllers_name]
+        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_type_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2, controllers_name]
         if all(isinstance(value, str) for value in params):
             robot_name_1 = '{}{}'.format(self.__robot_type_1, self.__robot_dof_1 if self.__robot_type_1 == 'xarm' else '6' if self.__robot_type_1 == 'lite' else '')
             robot_name_2 = '{}{}'.format(self.__robot_type_2, self.__robot_dof_2 if self.__robot_type_2 == 'xarm' else '6' if self.__robot_type_2 == 'lite' else '')
@@ -1498,24 +1525,21 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
                          If false, only loads the pipelines defined in config package.
         :return: Instance of MoveItConfigsBuilder with planning_pipelines loaded.
         """
-        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_dof_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2]
+        params = [self.__prefix_1, self.__prefix_2, self.__robot_type_1, self.__robot_type_2, self.__robot_dof_1, self.__robot_dof_2, self.__add_gripper_1, self.__add_gripper_2, self.__add_bio_gripper_1, self.__add_bio_gripper_2]
         if all(isinstance(value, str) for value in params):
             robot_name_1 = '{}{}'.format(self.__robot_type_1, self.__robot_dof_1 if self.__robot_type_1 == 'xarm' else '6' if self.__robot_type_1 == 'lite' else '')
             robot_name_2 = '{}{}'.format(self.__robot_type_2, self.__robot_dof_2 if self.__robot_type_2 == 'xarm' else '6' if self.__robot_type_2 == 'lite' else '')
             config_folder_1 = self._package_path / 'config' / robot_name_1
             config_folder_2 = self._package_path / 'config' / robot_name_2
-            if pipelines is None:
-                planning_pattern = re.compile('^(.*)_planning.yaml$')
-                pipelines_1 = get_pattern_matches(config_folder_1, planning_pattern)
-                pipelines_2 = get_pattern_matches(config_folder_2, planning_pattern)
-                pipelines = []
-                pipelines.extend(pipelines_1)
-                pipelines.extend(pipelines_2)
-                pipelines = list(set(pipelines))
-            else:
-                pipelines = list(set(pipelines))
-                pipelines_1 = pipelines
-                pipelines_2 = pipelines
+            planning_pattern = re.compile('^(.*)_planning.yaml$')
+            pipelines_1 = get_pattern_matches(config_folder_1, planning_pattern)
+            pipelines_2 = get_pattern_matches(config_folder_2, planning_pattern)
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [config_folder_1, config_folder_2],
+                pipelines,
+                load_all,
+            )
              # Define default pipeline as needed
             if not default_planning_pipeline:
                 if not pipelines or 'ompl' in pipelines:
@@ -1549,7 +1573,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
                     parameter_file = config_folder_1 / filename
                     planning_yaml_1 = load_yaml(parameter_file)
                     planning_yaml_1 = planning_yaml_1 if planning_yaml_1 else {}
-                    if self.__robot_type_1 != 'lite' and self.__add_gripper_1 in ('True', 'true'):
+                    if self.__add_gripper_1 in ('True', 'true'):
                         parameter_file = self._package_path / 'config' / '{}_gripper'.format(self.__robot_type_1) / filename
                         if parameter_file.exists():
                             gripper_planning_yaml = load_yaml(parameter_file)
@@ -1571,7 +1595,7 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
                     planning_yaml_2 = load_yaml(parameter_file)
                     planning_yaml_2 = planning_yaml_2 if planning_yaml_2 else {}
                                 
-                    if self.__robot_type_2 != 'lite' and self.__add_gripper_2 in ('True', 'true'):
+                    if self.__add_gripper_2 in ('True', 'true'):
                         parameter_file = self._package_path / 'config' / '{}_gripper'.format(self.__robot_type_2) / filename
                         if parameter_file.exists():
                             gripper_planning_yaml = load_yaml(parameter_file)
@@ -1620,7 +1644,12 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
             #             'start_state_max_bounds_error': 0.1,
             #         })
         else:
-            pipelines = list(set(pipelines)) if pipelines else ['ompl']
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [],
+                pipelines,
+                load_all,
+            )
             default_planning_pipeline = default_planning_pipeline if default_planning_pipeline else 'ompl'
             if default_planning_pipeline not in pipelines:
                 raise RuntimeError(
@@ -1683,7 +1712,6 @@ class DualMoveItConfigsBuilder(ParameterBuilder):
             self.__moveit_configs.pilz_cartesian_limits = {
                 key: YamlParameterValue(
                     DualCommonYAML('pilz_cartesian_limits.yaml', package_path=self._package_path, 
-                        prefix_1=self.__prefix_1, prefix_2=self.__prefix_2, 
                         robot_type_1=self.__robot_type_1, robot_type_2=self.__robot_type_2, 
                         robot_dof_1=self.__robot_dof_1, robot_dof_2=self.__robot_dof_2,
                 ), value_type=str)
@@ -2410,12 +2438,16 @@ class TripleMoveItConfigsBuilder(ParameterBuilder):
             robot_name_2 = '{}{}'.format(self.__robot_type_2, self.__robot_dof_2 if self.__robot_type_2 == 'xarm' else '6' if self.__robot_type_2 == 'lite' else '')
             robot_name_3 = '{}{}'.format(self.__robot_type_3, self.__robot_dof_3 if self.__robot_type_3 == 'xarm' else '6' if self.__robot_type_3 == 'lite' else '')
             config_folder = self._package_path / 'config' if config_folder is None else self._package_path / config_folder
-            # Get pattern matches from each robot's config folder.
-            planning_pattern = re.compile('^(.*)_planning.yaml$')
-            p1 = get_pattern_matches(self._package_path / 'config' / robot_name_1, planning_pattern)
-            p2 = get_pattern_matches(self._package_path / 'config' / robot_name_2, planning_pattern)
-            p3 = get_pattern_matches(self._package_path / 'config' / robot_name_3, planning_pattern)
-            pipelines = list(set(p1 + p2 + p3)) if pipelines is None else list(set(pipelines))
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [
+                    self._package_path / 'config' / robot_name_1,
+                    self._package_path / 'config' / robot_name_2,
+                    self._package_path / 'config' / robot_name_3,
+                ],
+                pipelines,
+                load_all,
+            )
             if not default_planning_pipeline:
                 default_planning_pipeline = 'ompl' if 'ompl' in pipelines or not pipelines else pipelines[0]
             if default_planning_pipeline not in pipelines:
@@ -2429,9 +2461,12 @@ class TripleMoveItConfigsBuilder(ParameterBuilder):
                 filename = pipeline + '_planning.yaml'
                 parameter_file = default_config_folder / filename
                 planning_yaml = load_yaml(parameter_file) or {} if parameter_file.exists() else {}
-                planning_yaml_1 = load_yaml(self._package_path / 'config' / robot_name_1 / filename) or {}
-                planning_yaml_2 = load_yaml(self._package_path / 'config' / robot_name_2 / filename) or {}
-                planning_yaml_3 = load_yaml(self._package_path / 'config' / robot_name_3 / filename) or {}
+                file_path_1 = self._package_path / 'config' / robot_name_1 / filename
+                file_path_2 = self._package_path / 'config' / robot_name_2 / filename
+                file_path_3 = self._package_path / 'config' / robot_name_3 / filename
+                planning_yaml_1 = load_yaml(file_path_1) or {} if file_path_1.exists() else {}
+                planning_yaml_2 = load_yaml(file_path_2) or {} if file_path_2.exists() else {}
+                planning_yaml_3 = load_yaml(file_path_3) or {} if file_path_3.exists() else {}
                 # Merge in gripper planning YAML if applicable
                 if self.__add_gripper_1 in ('True', 'true'):
                     gp1_path = self._package_path / 'config' / '{}_gripper'.format(self.__robot_type_1) / filename
@@ -2477,7 +2512,12 @@ class TripleMoveItConfigsBuilder(ParameterBuilder):
                     planning_yaml.update(load_yaml(parameter_file))
                 self.__moveit_configs.planning_pipelines[pipeline] = planning_yaml
         else:
-            pipelines = list(set(pipelines)) if pipelines else ['ompl']
+            pipelines = _planning_pipeline_names(
+                self._package_path,
+                [],
+                pipelines,
+                load_all,
+            )
             default_planning_pipeline = default_planning_pipeline if default_planning_pipeline else 'ompl'
             if default_planning_pipeline not in pipelines:
                 raise RuntimeError('default_planning_pipeline: `{}` doesn\'t name any of the input pipelines `{}`'.format(default_planning_pipeline, ','.join(pipelines)))

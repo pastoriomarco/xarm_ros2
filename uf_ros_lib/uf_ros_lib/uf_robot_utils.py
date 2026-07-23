@@ -7,9 +7,13 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 import os
+import shlex
 import yaml
 from pathlib import Path
+from launch.substitution import Substitution
 from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
+from launch.utilities import normalize_to_list_of_substitutions
+from launch.utilities import perform_substitutions
 from launch_ros.substitutions import FindPackageShare
 from tempfile import NamedTemporaryFile
 from ament_index_python import get_package_share_directory
@@ -17,20 +21,47 @@ from launch.substitutions import LaunchConfiguration
 from launch_param_builder import load_xacro
 
 
+class _ShellQuotedValue(Substitution):
+    """Render one deferred command value as exactly one shell token."""
+
+    def __init__(self, value):
+        super().__init__()
+        self.__value = normalize_to_list_of_substitutions(value)
+
+    def describe(self):
+        """Return a stable description for launch diagnostics."""
+        return '_ShellQuotedValue({})'.format(
+            ''.join(item.describe() for item in self.__value)
+        )
+
+    def perform(self, context):
+        """Resolve and quote the value for ``Command`` tokenization."""
+        return shlex.quote(perform_substitutions(context, self.__value))
+
+
 def get_xacro_command(
-    xacro_file=PathJoinSubstitution([FindPackageShare('xarm_description'), 'urdf', 'xarm_device.urdf.xacro']), 
-    mappings={}):
+    xacro_file=PathJoinSubstitution(
+        [
+            FindPackageShare('xarm_description'),
+            'urdf',
+            'xarm_device.urdf.xacro',
+        ]
+    ),
+    mappings=None,
+):
     command = [
         PathJoinSubstitution([FindExecutable(name='xacro')]),
         ' ',
-        str(xacro_file) if isinstance(xacro_file, Path) else xacro_file,
+        _ShellQuotedValue(
+            str(xacro_file) if isinstance(xacro_file, Path) else xacro_file
+        ),
         ' '
     ]
     if mappings and isinstance(mappings, dict):
         for key, val in mappings.items():
             command.extend([
                 '{}:='.format(key),
-                val,
+                _ShellQuotedValue(val),
                 ' '
             ])
     return Command(command)

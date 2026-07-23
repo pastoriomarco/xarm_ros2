@@ -62,7 +62,7 @@ class CommonYAML(BaseYamlSubstitution):
         filename = self.get_var_perform(self.__file_name, context)
 
         robot_name = '{}{}'.format(robot_type, robot_dof if robot_type == 'xarm' else '6' if robot_type == 'lite' else '')
-        file_path = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name / filename)
+        file_path = self.__package_path / 'config' / robot_name / filename
         if not file_path.exists():
             file_path = self.__package_path / 'config' / 'moveit_configs' / filename
         common_yaml = load_yaml(file_path)
@@ -115,8 +115,8 @@ class DualCommonYAML(BaseYamlSubstitution):
 
         robot_name_1 = '{}{}'.format(robot_type_1, robot_dof_1 if robot_type_1 == 'xarm' else '6' if robot_type_1 == 'lite' else '')        
         robot_name_2 = '{}{}'.format(robot_type_2, robot_dof_2 if robot_type_2 == 'xarm' else '6' if robot_type_2 == 'lite' else '')        
-        file_path_1 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_1 / filename)
-        file_path_2 = self.__file_path if self.__file_path else (self.__package_path / 'config' / robot_name_2 / filename)
+        file_path_1 = self.__package_path / 'config' / robot_name_1 / filename
+        file_path_2 = self.__package_path / 'config' / robot_name_2 / filename
         
         file_path = self.__package_path / 'config' / 'moveit_configs' / filename
         if file_path.exists():
@@ -124,10 +124,10 @@ class DualCommonYAML(BaseYamlSubstitution):
             default_yaml = default_yaml if default_yaml else {}
         else:
             default_yaml = {}
-        yaml_1 = load_yaml(file_path_1)
-        yaml_2 = load_yaml(file_path_2)
-        yaml_1 = yaml_1 if yaml_1 else {}
-        yaml_2 = yaml_2 if yaml_2 else {}
+        yaml_1 = load_yaml(file_path_1) if file_path_1.exists() else {}
+        yaml_2 = load_yaml(file_path_2) if file_path_2.exists() else {}
+        yaml_1 = yaml_1 or {}
+        yaml_2 = yaml_2 or {}
         default_yaml.update(yaml_1)
         default_yaml.update(yaml_2)
 
@@ -186,9 +186,9 @@ class TripleCommonYAML(BaseYamlSubstitution):
 
         default_file = self.__package_path / 'config' / 'moveit_configs' / filename
         default_yaml = load_yaml(default_file) if default_file.exists() else {}
-        yaml_1 = load_yaml(file_path_1) or {}
-        yaml_2 = load_yaml(file_path_2) or {}
-        yaml_3 = load_yaml(file_path_3) or {}
+        yaml_1 = load_yaml(file_path_1) if file_path_1.exists() else {}
+        yaml_2 = load_yaml(file_path_2) if file_path_2.exists() else {}
+        yaml_3 = load_yaml(file_path_3) if file_path_3.exists() else {}
         default_yaml.update(yaml_1)
         default_yaml.update(yaml_2)
         default_yaml.update(yaml_3)
