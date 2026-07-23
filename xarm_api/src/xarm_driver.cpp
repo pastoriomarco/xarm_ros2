@@ -6,6 +6,7 @@
            Vinman <vinman.cub@gmail.com>
  ============================================================================*/
 #include "xarm_api/xarm_driver.h"
+#include "xarm_api/driver_lifecycle.h"
 
 #define CMD_HEARTBEAT_SEC 30 // 30s
 
@@ -34,14 +35,69 @@
 //     return (void*)0;
 // }
 
+namespace
+{
+class XArmApiLifecycleTransport : public xarm_api::DriverLifecycleTransport
+{
+public:
+    explicit XArmApiLifecycleTransport(XArmAPI *arm)
+    : arm_(arm)
+    {
+    }
+
+    int connect() override
+    {
+        return arm_ == nullptr ? -1 : arm_->connect();
+    }
+
+    int read_error_warning(
+        std::array<int, xarm_api::kDriverErrorWarningWords> &error_warning) override
+    {
+        return arm_ == nullptr ? -1 : arm_->get_err_warn_code(error_warning.data());
+    }
+
+    int read_servo_debug(
+        std::array<int, xarm_api::kDriverServoDebugWords> &servo_debug) override
+    {
+        return arm_ == nullptr || arm_->core == nullptr ?
+            -1 : arm_->core->servo_get_dbmsg(servo_debug.data());
+    }
+
+    int clear_error() override
+    {
+        return arm_ == nullptr ? -1 : arm_->clean_error();
+    }
+
+    int set_pose_mode() override
+    {
+        return arm_ == nullptr ? -1 : arm_->set_mode(XARM_MODE::POSE);
+    }
+
+    void disconnect() override
+    {
+        if (arm_ != nullptr) {
+            arm_->disconnect();
+        }
+    }
+
+private:
+    XArmAPI *arm_;
+};
+}  // namespace
+
 namespace xarm_api
-{   
+{
     static const rclcpp::Logger LOGGER = rclcpp::get_logger("uf_ros_driver.sdk");
 
     XArmDriver::~XArmDriver()
-    {   
-        arm->set_mode(XARM_MODE::POSE);
-        arm->disconnect();
+    {
+        if (arm == NULL || transport_closed_) {
+            return;
+        }
+        XArmApiLifecycleTransport transport(arm);
+        close_driver_transport(transport, access_policy_, transport_connected_);
+        transport_connected_ = false;
+        transport_closed_ = true;
     }
 
     bool XArmDriver::_get_wait_param(void) 
@@ -147,10 +203,15 @@ namespace xarm_api
         curr_mode = 0;
         curr_cmdnum = 0;
         arm = NULL;
+        transport_connected_ = false;
+        transport_closed_ = false;
         in_ros_control_ = in_ros_control;
+        node_ = node;
+        bool read_only = false;
+        node_->get_parameter_or("read_only", read_only, false);
+        access_policy_ = DriverAccessPolicy(read_only);
         vacuum_gripper_hardware_version_ = 0;
 
-        node_ = node;
         std::string prefix = "";
         node_->get_parameter_or("prefix", prefix, std::string(""));
         std::string hw_ns;
@@ -174,7 +235,11 @@ namespace xarm_api
         node_->get_parameter_or("joint_states_rate", rate, -1);
         joint_state_rate_ = rate > 0 ? rate : joint_state_rate_;
 
-        RCLCPP_INFO(node_->get_logger(), "robot_ip=%s, report_type=%s, dof=%d", server_ip.c_str(), report_type_.c_str(), dof_);
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "robot_ip=%s, report_type=%s, dof=%d, access=%s",
+            server_ip.c_str(), report_type_.c_str(), dof_,
+            access_policy_.is_read_only() ? "read_only" : "control");
 
         bool baud_checkset = true;
         int default_gripper_baud = 2000000;
@@ -208,30 +273,83 @@ namespace xarm_api
         arm->release_report_data_callback(true);
         arm->register_connect_changed_callback(std::bind(&XArmDriver::_report_connect_changed_callback, this, std::placeholders::_1, std::placeholders::_2));
         arm->register_report_data_callback(std::bind(&XArmDriver::_report_data_callback, this, std::placeholders::_1));
-        arm->connect();
-
-        int err_warn[2] = {0};
-        int ret = arm->get_err_warn_code(err_warn);
-        if (err_warn[0] != 0) {
-            RCLCPP_WARN(node_->get_logger(), "UFACTORY ErrorCode: C%d: [ %s ]", err_warn[0], controller_error_interpreter(err_warn[0]).c_str());
+        XArmApiLifecycleTransport transport(arm);
+        const DriverStartupObservation startup =
+            observe_driver_startup(transport, access_policy_, dof_);
+        if (!startup.connected()) {
+            transport_closed_ = startup.failed_connection_cleanup_performed;
+            RCLCPP_ERROR(
+                node_->get_logger(),
+                "xArm connection failed with result %d; the partial connection was closed and no startup inspection or command endpoint was initialized",
+                startup.connect_result);
+            return;
         }
-        
+        transport_connected_ = true;
+
+        if (startup.error_warning_result != 0) {
+            RCLCPP_WARN(
+                node_->get_logger(),
+                "Unable to read UFACTORY error/warning state: result=%d",
+                startup.error_warning_result);
+        }
+        else if (startup.error_warning[0] != 0) {
+            RCLCPP_WARN(
+                node_->get_logger(), "UFACTORY ErrorCode: C%d: [ %s ]",
+                startup.error_warning[0],
+                controller_error_interpreter(startup.error_warning[0]).c_str());
+        }
+
         // std::thread th(cmd_heart_beat, this);
         // th.detach();
-        int dbg_msg[16] = {0};
-        arm->core->servo_get_dbmsg(dbg_msg);
+        if (startup.servo_debug_result != 0) {
+            RCLCPP_WARN(
+                node_->get_logger(),
+                "Unable to read UFACTORY servo debug state: result=%d",
+                startup.servo_debug_result);
+        }
 
-        for(int i=0; i<dof_; i++)
+        for (std::size_t index = 0; index < startup.inspected_joint_count; ++index)
         {
-            if((dbg_msg[i*2]==1)&&(dbg_msg[i*2+1]==40))
-            {
-                arm->clean_error();
-                RCLCPP_WARN(node_->get_logger(), "Cleared low-voltage error of joint %d", i+1);
+            const std::size_t status_index = index * 2;
+            if (startup.servo_debug[status_index] != 1) {
+                continue;
             }
-            else if((dbg_msg[i*2]==1))
+
+            const int error_code = startup.servo_debug[status_index + 1];
+            const int joint_number = static_cast<int>(index) + 1;
+            if (startup.automatic_fault_clear_attempted[index])
             {
-                arm->clean_error();
-                RCLCPP_WARN(node_->get_logger(), "There is servo error code:(0x%x) in joint %d, trying to clear it..", dbg_msg[i*2+1], i+1);
+                const int clear_result = startup.automatic_fault_clear_result[index];
+                if (clear_result == 0 && error_code == 40) {
+                    RCLCPP_WARN(
+                        node_->get_logger(),
+                        "Cleared low-voltage error of joint %d",
+                        joint_number);
+                }
+                else if (clear_result == 0) {
+                    RCLCPP_WARN(
+                        node_->get_logger(),
+                        "There was servo error code 0x%x in joint %d; it was cleared",
+                        error_code, joint_number);
+                }
+                else {
+                    RCLCPP_WARN(
+                        node_->get_logger(),
+                        "Failed to clear servo error code 0x%x in joint %d: result=%d",
+                        error_code, joint_number, clear_result);
+                }
+            }
+            else if (error_code == 40) {
+                RCLCPP_WARN(
+                    node_->get_logger(),
+                    "Read-only mode observed low-voltage error on joint %d; it was not cleared",
+                    joint_number);
+            }
+            else {
+                RCLCPP_WARN(
+                    node_->get_logger(),
+                    "Read-only mode observed servo error code 0x%x on joint %d; it was not cleared",
+                    error_code, joint_number);
             }
         }
 
@@ -278,10 +396,19 @@ namespace xarm_api
             }).detach();
         }
 
-        _init_service();
-        _init_subscription();
-        _init_xarm_gripper();
-        _init_bio_gripper();
+        if (access_policy_.permits_command_endpoints()) {
+            _init_service();
+            _init_subscription();
+        }
+        else {
+            RCLCPP_INFO(
+                node_->get_logger(),
+                "Read-only mode suppresses all xArm command services and command subscriptions");
+        }
+        if (access_policy_.permits_gripper_actions()) {
+            _init_xarm_gripper();
+            _init_bio_gripper();
+        }
 
         bool add_gripper;
         node_->get_parameter_or("add_gripper", add_gripper, false);

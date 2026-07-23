@@ -7,15 +7,15 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 import os
+
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import OpaqueFunction, DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch import LaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from uf_ros_lib.uf_robot_utils import  generate_robot_api_params
+from uf_ros_lib.uf_robot_utils import generate_robot_api_params
 
 
 def launch_setup(context, *args, **kwargs):
@@ -61,18 +61,21 @@ def launch_setup(context, *args, **kwargs):
     baud_checkset = LaunchConfiguration('baud_checkset', default=True)
     default_gripper_baud = LaunchConfiguration('default_gripper_baud', default=2000000)
     joint_states_rate = LaunchConfiguration('joint_states_rate', default=-1)
-    
+    read_only = LaunchConfiguration('read_only', default=False)
+
     show_rviz = LaunchConfiguration('show_rviz', default=False)
     robot_type = LaunchConfiguration('robot_type', default='xarm')
     extra_robot_api_params_path = LaunchConfiguration('extra_robot_api_params_path', default='')
-    
+
+    ros_namespace = LaunchConfiguration('ros_namespace', default='').perform(context)
     robot_params = generate_robot_api_params(
         os.path.join(get_package_share_directory('xarm_api'), 'config', 'xarm_params.yaml'),
         os.path.join(get_package_share_directory('xarm_api'), 'config', 'xarm_user_params.yaml'),
-        LaunchConfiguration('ros_namespace', default='').perform(context), node_name='ufactory_driver',
+        ros_namespace,
+        node_name='ufactory_driver',
         extra_robot_api_params_path=extra_robot_api_params_path.perform(context)
     )
-    
+
     # robot driver node
     robot_driver_node = Node(
         # namespace=hw_ns,
@@ -89,11 +92,15 @@ def launch_setup(context, *args, **kwargs):
                 'dof': dof,
                 'add_gripper': add_gripper if robot_type.perform(context) != 'lite' else False,
                 'add_bio_gripper': add_bio_gripper,
-                'hw_ns': '{}{}'.format(prefix.perform(context).strip('/'), hw_ns.perform(context).strip('/')),
+                'hw_ns': '{}{}'.format(
+                    prefix.perform(context).strip('/'),
+                    hw_ns.perform(context).strip('/'),
+                ),
                 'prefix': prefix.perform(context).strip('/'),
                 'baud_checkset': baud_checkset,
                 'default_gripper_baud': default_gripper_baud,
                 'joint_states_rate': joint_states_rate,
+                'read_only': read_only,
             },
         ]
     )
@@ -105,7 +112,13 @@ def launch_setup(context, *args, **kwargs):
         # robot rviz launch
         # xarm_description/launch/_robot_rviz_display.launch.py
         robot_rviz_launch = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(PathJoinSubstitution([FindPackageShare('xarm_description'), 'launch', '_robot_rviz_display.launch.py'])),
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare('xarm_description'),
+                    'launch',
+                    '_robot_rviz_display.launch.py',
+                ])
+            ),
             launch_arguments={
                 'prefix': prefix,
                 'hw_ns': hw_ns,

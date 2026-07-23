@@ -35,6 +35,16 @@ def generate_launch_description():
             description='The namespace of ufactory_driver, default is ufactory.',
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'read_only',
+            default_value='false',
+            description=(
+                'Connect and publish observed state without exposing command '
+                'services/actions or issuing automatic robot commands.'
+            ),
+        )
+    )
 
     # Initialize Arguments
     robot_ip = LaunchConfiguration('robot_ip')
@@ -43,6 +53,7 @@ def generate_launch_description():
     add_gripper = LaunchConfiguration('add_gripper', default=False)
     add_vacuum_gripper = LaunchConfiguration('add_vacuum_gripper', default=False)
     show_rviz = LaunchConfiguration('show_rviz', default=False)
+    read_only = LaunchConfiguration('read_only', default=False)
 
     # robot driver launch
     # xarm_api/launch/_robot_driver.launch.py
@@ -57,6 +68,7 @@ def generate_launch_description():
             'add_vacuum_gripper': add_vacuum_gripper,
             'show_rviz': show_rviz,
             'robot_type': 'lite',
+            'read_only': read_only,
         }.items(),
     )
 

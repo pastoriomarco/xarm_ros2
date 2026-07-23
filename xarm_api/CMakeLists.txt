@@ -14,7 +14,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic
     -Wno-sign-compare
-    -Wno-unused-parameter 
+    -Wno-unused-parameter
     -Wno-unused-variable
   )
 endif()
@@ -34,6 +34,15 @@ if(BUILD_TESTING)
   # uncomment the line when this package is not in a git repo
   #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_driver_access_policy
+    test/test_driver_access_policy.cpp
+  )
+  target_include_directories(test_driver_access_policy PRIVATE include)
+  ament_add_gtest(test_driver_lifecycle
+    test/test_driver_lifecycle.cpp
+  )
+  target_include_directories(test_driver_lifecycle PRIVATE include)
 endif()
 
 find_package(rclcpp REQUIRED)
@@ -58,7 +67,7 @@ add_library(xarm_ros_driver SHARED
   src/xarm_driver_service.cpp
 )
 ament_target_dependencies(xarm_ros_driver ${dependencies})
-target_link_libraries(xarm_ros_driver 
+target_link_libraries(xarm_ros_driver
   ${xarm_sdk_LIBRARIES}
   ${ament_LIBRARIES}
 )
@@ -68,7 +77,7 @@ add_executable(xarm_driver_node
 )
 
 ament_target_dependencies(xarm_driver_node ${dependencies})
-target_link_libraries(xarm_driver_node 
+target_link_libraries(xarm_driver_node
   xarm_ros_driver
   ${ament_LIBRARIES}
 )
@@ -79,25 +88,25 @@ add_library(xarm_ros_client SHARED
 ament_target_dependencies(xarm_ros_client ${dependencies})
 
 add_executable(test_xarm_ros_client
-   test/test_xarm_ros_client.cpp
+  test/test_xarm_ros_client.cpp
 )
 ament_target_dependencies(test_xarm_ros_client ${dependencies})
-target_link_libraries(test_xarm_ros_client 
+target_link_libraries(test_xarm_ros_client
   xarm_ros_client
   ${ament_LIBRARIES}
 )
 
 add_executable(test_xarm_velo_move
-   test/test_xarm_velo_move.cpp
+  test/test_xarm_velo_move.cpp
 )
 ament_target_dependencies(test_xarm_velo_move ${dependencies})
-target_link_libraries(test_xarm_velo_move 
+target_link_libraries(test_xarm_velo_move
   xarm_ros_client
   ${ament_LIBRARIES}
 )
 
 add_executable(test_robot_states
-   test/test_robot_states.cpp
+  test/test_robot_states.cpp
 )
 ament_target_dependencies(test_robot_states ${dependencies})
 
@@ -118,7 +127,7 @@ install(
 
 install(
   TARGETS
-  xarm_driver_node 
+  xarm_driver_node
   test_xarm_ros_client
   test_xarm_velo_move
   test_robot_states

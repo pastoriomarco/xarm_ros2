@@ -18,6 +18,7 @@
 
 #include "xarm_msgs.h"
 #include "xarm/wrapper/xarm_api.h"
+#include "xarm_api/driver_access_policy.h"
 
 namespace xarm_api
 {
@@ -74,7 +75,7 @@ namespace xarm_api
         bool _firmware_version_is_ge(int major, int minor, int revision);
 
     public:
-        XArmAPI *arm;
+        XArmAPI *arm = nullptr;
         int curr_state;
         int curr_err;
         int curr_cmdnum;
@@ -84,12 +85,15 @@ namespace xarm_api
         rclcpp::Node::SharedPtr node_;
         rclcpp::Node::SharedPtr hw_node_;
 
-        SocketPort *sock_rt_;
+        SocketPort *sock_rt_ = nullptr;
 
         int dof_;
         int joint_state_rate_;
         int joint_state_flags_;
         bool in_ros_control_;
+        bool transport_connected_ = false;
+        bool transport_closed_ = false;
+        DriverAccessPolicy access_policy_;
         int vacuum_gripper_hardware_version_;
         std::string report_type_;
         std::vector<std::string> joint_names_;
