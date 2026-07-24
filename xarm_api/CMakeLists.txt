@@ -72,6 +72,18 @@ target_link_libraries(xarm_ros_driver
   ${ament_LIBRARIES}
 )
 
+if(BUILD_TESTING)
+  ament_add_gtest(test_driver_injected_transport
+    test/test_driver_injected_transport.cpp
+  )
+  target_include_directories(test_driver_injected_transport PRIVATE include)
+  ament_target_dependencies(test_driver_injected_transport ${dependencies})
+  target_link_libraries(test_driver_injected_transport
+    xarm_ros_driver
+    ${ament_LIBRARIES}
+  )
+endif()
+
 add_executable(xarm_driver_node
   src/xarm_driver_node.cpp
 )

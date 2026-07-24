@@ -29,46 +29,113 @@
 #ifndef XARM_API__DRIVER_ACCESS_POLICY_H_
 #define XARM_API__DRIVER_ACCESS_POLICY_H_
 
+#include <string>
+
 // Keep the package's cpplint namespace convention despite its legacy
 // uncrustify profile requesting the opposite indentation.
 // *INDENT-OFF*
 namespace xarm_api
 {
+enum class DriverAccessMode
+{
+  kLegacyControl,
+  kReadOnly,
+  kSupervisedLifecycle,
+};
+
+inline const char * driver_access_mode_name(DriverAccessMode mode)
+{
+  switch (mode) {
+    case DriverAccessMode::kLegacyControl:
+      return "legacy_control";
+    case DriverAccessMode::kReadOnly:
+      return "read_only";
+    case DriverAccessMode::kSupervisedLifecycle:
+      return "supervised_lifecycle";
+  }
+  return "unknown";
+}
+
+inline bool parse_driver_access_mode(
+  const std::string & value, DriverAccessMode & mode)
+{
+  if (value == "legacy_control") {
+    mode = DriverAccessMode::kLegacyControl;
+    return true;
+  }
+  if (value == "read_only") {
+    mode = DriverAccessMode::kReadOnly;
+    return true;
+  }
+  if (value == "supervised_lifecycle") {
+    mode = DriverAccessMode::kSupervisedLifecycle;
+    return true;
+  }
+  return false;
+}
+
 class DriverAccessPolicy
 {
 public:
-  explicit DriverAccessPolicy(bool read_only = false)
-  : read_only_(read_only)
+  DriverAccessPolicy()
+  : mode_(DriverAccessMode::kLegacyControl)
   {
+  }
+
+  explicit DriverAccessPolicy(bool read_only)
+  : mode_(
+      read_only ? DriverAccessMode::kReadOnly :
+      DriverAccessMode::kLegacyControl)
+  {
+  }
+
+  explicit DriverAccessPolicy(DriverAccessMode mode)
+  : mode_(mode)
+  {
+  }
+
+  DriverAccessMode mode() const
+  {
+    return mode_;
   }
 
   bool is_read_only() const
   {
-    return read_only_;
+    return mode_ == DriverAccessMode::kReadOnly;
+  }
+
+  bool is_supervised_lifecycle() const
+  {
+    return mode_ == DriverAccessMode::kSupervisedLifecycle;
   }
 
   bool permits_command_endpoints() const
   {
-    return !read_only_;
+    return mode_ == DriverAccessMode::kLegacyControl;
   }
 
   bool permits_automatic_fault_clear() const
   {
-    return !read_only_;
+    return mode_ == DriverAccessMode::kLegacyControl;
   }
 
   bool permits_shutdown_mode_change() const
   {
-    return !read_only_;
+    return mode_ == DriverAccessMode::kLegacyControl;
   }
 
   bool permits_gripper_actions() const
   {
-    return !read_only_;
+    return mode_ == DriverAccessMode::kLegacyControl;
+  }
+
+  bool permits_supervised_lifecycle_commands() const
+  {
+    return mode_ == DriverAccessMode::kSupervisedLifecycle;
   }
 
 private:
-  bool read_only_;
+  DriverAccessMode mode_;
 };
 }  // namespace xarm_api
 // *INDENT-ON*

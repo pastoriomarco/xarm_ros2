@@ -21,11 +21,20 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
 ### Experimental protected observation mode in this fork
 
 The standalone `xarm_api` driver in the ManyForge integration branches adds
-three opt-in parameters while preserving the existing defaults:
+an explicit access policy and identity checks while preserving the existing
+default:
 
-- `read_only:=true` suppresses command services, command subscriptions,
+- `access_mode:=legacy_control` preserves the existing command-capable
+  behavior and remains the default;
+- `access_mode:=read_only` suppresses command services, command subscriptions,
   gripper actions, automatic startup fault clearing, and the shutdown
-  pose-mode command;
+  pose-mode command. The older `read_only:=true` parameter remains a
+  compatibility spelling when `access_mode` is omitted;
+- `access_mode:=supervised_lifecycle` suppresses the same legacy and automatic
+  paths, but permits a small C++-internal lifecycle primitive port. It exposes
+  no ROS command service or subscription. A separate supervisor must authorize,
+  sequence, and verify every primitive; selecting this mode does not itself
+  enable or recover the robot;
 - `expected_robot_sn:=<14-character serial>` enables exact runtime controller
   identity verification; and
 - `expected_robot_device_type:=9` additionally requires the Lite6 SDK device
@@ -34,9 +43,24 @@ three opt-in parameters while preserving the existing defaults:
 
 Identity is checked immediately after the vendor connection. A read failure or
 mismatch closes the connection before fault inspection, state publication, or
-command initialization. These parameters do not constitute a safety function,
-and the command-capable `ros2_control` hardware plugin is outside this
-standalone-driver mode.
+command initialization. An unknown access mode, or a conflicting
+`read_only:=true` plus non-read-only access mode, is rejected before the SDK
+transport is created. These parameters do not constitute a safety function,
+and the existing command-capable `ros2_control` hardware plugin remains a
+separate legacy path until its caller selects and qualifies the supervised
+route explicitly.
+
+The C++ driver also exposes
+`init_with_injected_lifecycle_transport(...)` for deterministic lifecycle and
+failure testing without constructing `XArmAPI` or opening a vendor socket. It
+cannot be selected through a ROS parameter or launch argument. An injected
+transport never exposes the legacy SDK command or gripper endpoints; tests
+exercise any intended write only against the injected fake. The injected seam
+also proves that supervised clear/warning, motion-enable, mode, and state
+primitives remain inaccessible in `read_only` and `legacy_control`, and require
+one explicit C++ call in `supervised_lifecycle`. It does not define the
+robot-specific transition sequence. Firmware-derived features, including the
+auxiliary gripper-status socket, remain disabled without a native SDK object.
 
 ## 2. Update History    
 - moveit dual arm control (under single rviz GUI), each arm can be separately configured（e.g. DOF, add_gripper, etc）

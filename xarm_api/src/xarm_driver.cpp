@@ -84,6 +84,26 @@ public:
         return arm_ == nullptr ? -1 : arm_->clean_error();
     }
 
+    int clear_warning() override
+    {
+        return arm_ == nullptr ? -1 : arm_->clean_warn();
+    }
+
+    int set_motion_enabled(bool enabled, int servo_id) override
+    {
+        return arm_ == nullptr ? -1 : arm_->motion_enable(enabled, servo_id);
+    }
+
+    int set_mode(int mode) override
+    {
+        return arm_ == nullptr ? -1 : arm_->set_mode(mode);
+    }
+
+    int set_state(int state) override
+    {
+        return arm_ == nullptr ? -1 : arm_->set_state(state);
+    }
+
     int set_pose_mode() override
     {
         return arm_ == nullptr ? -1 : arm_->set_mode(XARM_MODE::POSE);
@@ -120,15 +140,15 @@ namespace xarm_api
 
     void XArmDriver::shutdown() noexcept
     {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
         if (shutdown_started_.exchange(true)) {
             return;
         }
         observation_admitted_.store(false);
         try {
-            if (arm != NULL && !transport_closed_) {
-                XArmApiLifecycleTransport transport(arm);
+            if (lifecycle_transport_ != nullptr && !transport_closed_) {
                 close_driver_transport(
-                    transport, access_policy_, transport_connected_);
+                    *lifecycle_transport_, access_policy_, transport_connected_);
                 transport_connected_ = false;
                 transport_closed_ = true;
             }
@@ -144,6 +164,19 @@ namespace xarm_api
         catch (...) {
             fprintf(stderr, "[xarm_driver] shutdown failed safely\n");
         }
+    }
+
+    DriverLifecycleCommandResult XArmDriver::execute_supervised_lifecycle_command(
+        const DriverLifecycleCommand &command)
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (shutdown_started_.load() || lifecycle_transport_ == nullptr) {
+            DriverLifecycleCommandResult result;
+            result.reason = "driver_not_available";
+            return result;
+        }
+        return xarm_api::execute_supervised_lifecycle_command(
+            *lifecycle_transport_, access_policy_, transport_connected_, command);
     }
 
     bool XArmDriver::_get_wait_param(void) 
@@ -254,7 +287,20 @@ namespace xarm_api
         }
     }
 
-    void XArmDriver::init(rclcpp::Node::SharedPtr& node, std::string &server_ip, bool in_ros_control)
+    void XArmDriver::init(
+        rclcpp::Node::SharedPtr& node,
+        std::string &server_ip,
+        bool in_ros_control)
+    {
+        init_with_injected_lifecycle_transport(
+            node, server_ip, nullptr, in_ros_control);
+    }
+
+    void XArmDriver::init_with_injected_lifecycle_transport(
+        rclcpp::Node::SharedPtr& node,
+        std::string &server_ip,
+        const std::shared_ptr<DriverLifecycleTransport> &lifecycle_transport,
+        bool in_ros_control)
     {
         curr_err = 0;
         curr_state = 4;
@@ -265,11 +311,33 @@ namespace xarm_api
         transport_closed_ = false;
         shutdown_started_.store(false);
         observation_admitted_.store(false);
+        lifecycle_transport_.reset();
         in_ros_control_ = in_ros_control;
         node_ = node;
         bool read_only = false;
         node_->get_parameter_or("read_only", read_only, false);
-        access_policy_ = DriverAccessPolicy(read_only);
+        std::string access_mode;
+        node_->get_parameter_or(
+            "access_mode", access_mode, std::string(""));
+        if (access_mode.empty()) {
+            access_policy_ = DriverAccessPolicy(read_only);
+        }
+        else {
+            DriverAccessMode parsed_mode = DriverAccessMode::kReadOnly;
+            if (!parse_driver_access_mode(access_mode, parsed_mode) ||
+                (read_only && parsed_mode != DriverAccessMode::kReadOnly))
+            {
+                access_policy_ =
+                    DriverAccessPolicy(DriverAccessMode::kReadOnly);
+                RCLCPP_ERROR(
+                    node_->get_logger(),
+                    "Invalid or conflicting xArm access_mode '%s'; refusing "
+                    "to create the SDK transport",
+                    access_mode.c_str());
+                return;
+            }
+            access_policy_ = DriverAccessPolicy(parsed_mode);
+        }
         std::string expected_robot_sn;
         node_->get_parameter_or(
             "expected_robot_sn", expected_robot_sn, std::string(""));
@@ -309,7 +377,7 @@ namespace xarm_api
             node_->get_logger(),
             "robot_ip=%s, report_type=%s, dof=%d, access=%s",
             server_ip.c_str(), report_type_.c_str(), dof_,
-            access_policy_.is_read_only() ? "read_only" : "control");
+            driver_access_mode_name(access_policy_.mode()));
 
         bool baud_checkset = true;
         int default_gripper_baud = 2000000;
@@ -321,32 +389,43 @@ namespace xarm_api
         _init_publisher();
         setlinebuf(stdout);
 
-        arm = new XArmAPI(
-            server_ip, 
-            true, // is_radian
-            true, // do_not_open
-            true, // check_tcp_limit
-            true, // check_joint_limit
-            true, // check_cmdnum_limit
-            false, // check_robot_sn
-            true, // check_is_ready
-            true, // check_is_pause
-            0, // max_callback_thread_count
-            512, // max_cmdnum
-            dof_, // init_axis
-            DEBUG_MODE, // debug
-            report_type_ // report_type
-        );
-        arm->set_baud_checkset_enable(baud_checkset);
-        arm->set_checkset_default_baud(1, default_gripper_baud);
-        arm->release_connect_changed_callback(true);
-        arm->release_report_data_callback(true);
-        arm->register_connect_changed_callback(std::bind(&XArmDriver::_report_connect_changed_callback, this, std::placeholders::_1, std::placeholders::_2));
-        arm->register_report_data_callback(std::bind(&XArmDriver::_report_data_callback, this, std::placeholders::_1));
-        XArmApiLifecycleTransport transport(arm);
+        if (lifecycle_transport == nullptr) {
+            arm = new XArmAPI(
+                server_ip,
+                true, // is_radian
+                true, // do_not_open
+                true, // check_tcp_limit
+                true, // check_joint_limit
+                true, // check_cmdnum_limit
+                false, // check_robot_sn
+                true, // check_is_ready
+                true, // check_is_pause
+                0, // max_callback_thread_count
+                512, // max_cmdnum
+                dof_, // init_axis
+                DEBUG_MODE, // debug
+                report_type_ // report_type
+            );
+            arm->set_baud_checkset_enable(baud_checkset);
+            arm->set_checkset_default_baud(1, default_gripper_baud);
+            arm->release_connect_changed_callback(true);
+            arm->release_report_data_callback(true);
+            arm->register_connect_changed_callback(std::bind(&XArmDriver::_report_connect_changed_callback, this, std::placeholders::_1, std::placeholders::_2));
+            arm->register_report_data_callback(std::bind(&XArmDriver::_report_data_callback, this, std::placeholders::_1));
+            lifecycle_transport_ =
+                std::make_shared<XArmApiLifecycleTransport>(arm);
+        }
+        else {
+            lifecycle_transport_ = lifecycle_transport;
+            RCLCPP_INFO(
+                node_->get_logger(),
+                "Using an injected xArm lifecycle transport; no vendor SDK "
+                "object or socket was created");
+        }
         const DriverStartupObservation startup =
             observe_driver_startup(
-                transport, access_policy_, dof_, identity_expectation);
+                *lifecycle_transport_, access_policy_, dof_,
+                identity_expectation);
         if (!startup.connected()) {
             transport_closed_ = startup.failed_connection_cleanup_performed;
             RCLCPP_ERROR(
@@ -429,18 +508,22 @@ namespace xarm_api
             else if (error_code == 40) {
                 RCLCPP_WARN(
                     node_->get_logger(),
-                    "Read-only mode observed low-voltage error on joint %d; it was not cleared",
+                    "%s mode observed low-voltage error on joint %d; it was "
+                    "not cleared automatically",
+                    driver_access_mode_name(access_policy_.mode()),
                     joint_number);
             }
             else {
                 RCLCPP_WARN(
                     node_->get_logger(),
-                    "Read-only mode observed servo error code 0x%x on joint %d; it was not cleared",
+                    "%s mode observed servo error code 0x%x on joint %d; it "
+                    "was not cleared automatically",
+                    driver_access_mode_name(access_policy_.mode()),
                     error_code, joint_number);
             }
         }
 
-        if (!in_ros_control_)
+        if (!in_ros_control_ && arm != NULL)
         {
             joint_state_thread_ = std::thread([this]() {
                 float position[7] = {0};
@@ -486,17 +569,35 @@ namespace xarm_api
         }
 
         if (access_policy_.permits_command_endpoints()) {
-            _init_service();
-            _init_subscription();
+            if (arm != NULL) {
+                _init_service();
+                _init_subscription();
+            }
+            else {
+                RCLCPP_INFO(
+                    node_->get_logger(),
+                    "Injected lifecycle transport has no native SDK command "
+                    "surface; legacy command endpoints remain suppressed");
+            }
         }
         else {
             RCLCPP_INFO(
                 node_->get_logger(),
-                "Read-only mode suppresses all xArm command services and command subscriptions");
+                "%s mode suppresses all legacy xArm command services and "
+                "command subscriptions",
+                driver_access_mode_name(access_policy_.mode()));
         }
         if (access_policy_.permits_gripper_actions()) {
-            _init_xarm_gripper();
-            _init_bio_gripper();
+            if (arm != NULL) {
+                _init_xarm_gripper();
+                _init_bio_gripper();
+            }
+            else {
+                RCLCPP_INFO(
+                    node_->get_logger(),
+                    "Injected lifecycle transport has no native SDK gripper "
+                    "surface; gripper actions remain suppressed");
+            }
         }
 
         bool add_gripper;
@@ -505,7 +606,11 @@ namespace xarm_api
         bool add_bio_gripper;
         node_->get_parameter_or("add_bio_gripper", add_bio_gripper, false);
 
-        if (_firmware_version_is_ge(2, 7, 101) && (add_gripper || add_bio_gripper)) {
+        if (
+            arm != NULL &&
+            (add_gripper || add_bio_gripper) &&
+            _firmware_version_is_ge(2, 7, 101))
+        {
             sock_rt_ = new SocketPort((char *)server_ip.data(), 30000, 10, 1024, 1);
             std::thread([this]() {
                 int ret;
@@ -595,7 +700,13 @@ namespace xarm_api
 
     bool XArmDriver::_firmware_version_is_ge(int major, int minor, int revision)
 	{
-		return arm->version_number[0] > major || (arm->version_number[0] == major && arm->version_number[1] > minor) || (arm->version_number[0] == major && arm->version_number[1] == minor && arm->version_number[2] >= revision);
+		return arm != NULL &&
+            (arm->version_number[0] > major ||
+            (arm->version_number[0] == major &&
+            arm->version_number[1] > minor) ||
+            (arm->version_number[0] == major &&
+            arm->version_number[1] == minor &&
+            arm->version_number[2] >= revision));
 	}
 
     void XArmDriver::_init_publisher(void)
@@ -1122,7 +1233,7 @@ namespace xarm_api
     }
 
     bool XArmDriver::is_connected(void) {
-        return arm == NULL ? false : arm->is_connected();
+        return arm == NULL ? transport_connected_ : arm->is_connected();
     }
 
     std::string XArmDriver::controller_error_interpreter(int err)

@@ -32,13 +32,16 @@
 
 TEST(DriverAccessPolicy, ControlModePreservesExistingCommandBehavior)
 {
-  const xarm_api::DriverAccessPolicy policy(false);
+  const xarm_api::DriverAccessPolicy policy(
+    xarm_api::DriverAccessMode::kLegacyControl);
 
   EXPECT_FALSE(policy.is_read_only());
+  EXPECT_FALSE(policy.is_supervised_lifecycle());
   EXPECT_TRUE(policy.permits_command_endpoints());
   EXPECT_TRUE(policy.permits_automatic_fault_clear());
   EXPECT_TRUE(policy.permits_shutdown_mode_change());
   EXPECT_TRUE(policy.permits_gripper_actions());
+  EXPECT_FALSE(policy.permits_supervised_lifecycle_commands());
 }
 
 TEST(DriverAccessPolicy, ReadOnlyModeSuppressesEveryCommandPath)
@@ -46,8 +49,39 @@ TEST(DriverAccessPolicy, ReadOnlyModeSuppressesEveryCommandPath)
   const xarm_api::DriverAccessPolicy policy(true);
 
   EXPECT_TRUE(policy.is_read_only());
+  EXPECT_FALSE(policy.is_supervised_lifecycle());
   EXPECT_FALSE(policy.permits_command_endpoints());
   EXPECT_FALSE(policy.permits_automatic_fault_clear());
   EXPECT_FALSE(policy.permits_shutdown_mode_change());
   EXPECT_FALSE(policy.permits_gripper_actions());
+  EXPECT_FALSE(policy.permits_supervised_lifecycle_commands());
+}
+
+TEST(DriverAccessPolicy, SupervisedModeHasNoLegacyOrAutomaticCommandPath)
+{
+  const xarm_api::DriverAccessPolicy policy(
+    xarm_api::DriverAccessMode::kSupervisedLifecycle);
+
+  EXPECT_FALSE(policy.is_read_only());
+  EXPECT_TRUE(policy.is_supervised_lifecycle());
+  EXPECT_FALSE(policy.permits_command_endpoints());
+  EXPECT_FALSE(policy.permits_automatic_fault_clear());
+  EXPECT_FALSE(policy.permits_shutdown_mode_change());
+  EXPECT_FALSE(policy.permits_gripper_actions());
+  EXPECT_TRUE(policy.permits_supervised_lifecycle_commands());
+}
+
+TEST(DriverAccessPolicy, ParsesOnlyExplicitStableAccessModeNames)
+{
+  xarm_api::DriverAccessMode mode =
+    xarm_api::DriverAccessMode::kLegacyControl;
+  EXPECT_TRUE(xarm_api::parse_driver_access_mode("read_only", mode));
+  EXPECT_EQ(xarm_api::DriverAccessMode::kReadOnly, mode);
+  EXPECT_TRUE(
+    xarm_api::parse_driver_access_mode("supervised_lifecycle", mode));
+  EXPECT_EQ(xarm_api::DriverAccessMode::kSupervisedLifecycle, mode);
+  EXPECT_TRUE(
+    xarm_api::parse_driver_access_mode("legacy_control", mode));
+  EXPECT_EQ(xarm_api::DriverAccessMode::kLegacyControl, mode);
+  EXPECT_FALSE(xarm_api::parse_driver_access_mode("control", mode));
 }

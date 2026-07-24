@@ -83,10 +83,98 @@ public:
   virtual int read_servo_debug(
     std::array<int, kDriverServoDebugWords> & servo_debug) = 0;
   virtual int clear_error() = 0;
+  virtual int clear_warning() = 0;
+  virtual int set_motion_enabled(bool enabled, int servo_id) = 0;
+  virtual int set_mode(int mode) = 0;
+  virtual int set_state(int state) = 0;
   virtual int set_pose_mode() = 0;
   virtual void release_callbacks() = 0;
   virtual void disconnect() = 0;
 };
+
+enum class DriverLifecycleCommandKind
+{
+  kClearError,
+  kClearWarning,
+  kSetMotionEnabled,
+  kSetMode,
+  kSetState,
+};
+
+struct DriverLifecycleCommand
+{
+  DriverLifecycleCommandKind kind = DriverLifecycleCommandKind::kClearError;
+  int value = 0;
+  int servo_id = 8;
+};
+
+struct DriverLifecycleCommandResult
+{
+  bool permitted = false;
+  bool attempted = false;
+  int return_code = -1;
+  const char * reason = "not_evaluated";
+};
+
+inline DriverLifecycleCommandResult execute_supervised_lifecycle_command(
+  DriverLifecycleTransport & transport,
+  const DriverAccessPolicy & access_policy,
+  bool connected,
+  const DriverLifecycleCommand & command)
+{
+  DriverLifecycleCommandResult result;
+  if (!access_policy.permits_supervised_lifecycle_commands()) {
+    result.reason = "access_mode_not_supervised";
+    return result;
+  }
+  result.permitted = true;
+  if (!connected) {
+    result.reason = "transport_not_connected";
+    return result;
+  }
+
+  switch (command.kind) {
+    case DriverLifecycleCommandKind::kClearError:
+      result.attempted = true;
+      result.return_code = transport.clear_error();
+      break;
+    case DriverLifecycleCommandKind::kClearWarning:
+      result.attempted = true;
+      result.return_code = transport.clear_warning();
+      break;
+    case DriverLifecycleCommandKind::kSetMotionEnabled:
+      if ((command.value != 0 && command.value != 1) ||
+        command.servo_id < 1 || command.servo_id > 8)
+      {
+        result.reason = "invalid_motion_enable_argument";
+        return result;
+      }
+      result.attempted = true;
+      result.return_code =
+        transport.set_motion_enabled(command.value == 1, command.servo_id);
+      break;
+    case DriverLifecycleCommandKind::kSetMode:
+      if (command.value < 0 || command.value > 255) {
+        result.reason = "invalid_mode_argument";
+        return result;
+      }
+      result.attempted = true;
+      result.return_code = transport.set_mode(command.value);
+      break;
+    case DriverLifecycleCommandKind::kSetState:
+      if (command.value < 0 || command.value > 255) {
+        result.reason = "invalid_state_argument";
+        return result;
+      }
+      result.attempted = true;
+      result.return_code = transport.set_state(command.value);
+      break;
+  }
+
+  result.reason =
+    result.return_code == 0 ? "command_succeeded" : "command_failed";
+  return result;
+}
 
 struct DriverStartupObservation
 {

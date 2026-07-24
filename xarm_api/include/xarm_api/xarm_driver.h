@@ -10,6 +10,8 @@
 #define __XARM_DRIVER_H
 
 #include <atomic>
+#include <memory>
+#include <mutex>
 #include <thread>
 
 #include <rclcpp/rclcpp.hpp>
@@ -22,6 +24,7 @@
 #include "xarm_msgs.h"
 #include "xarm/wrapper/xarm_api.h"
 #include "xarm_api/driver_access_policy.h"
+#include "xarm_api/driver_lifecycle.h"
 
 namespace xarm_api
 {
@@ -31,7 +34,14 @@ namespace xarm_api
         XArmDriver() {};
         ~XArmDriver();
         void init(rclcpp::Node::SharedPtr& node, std::string &server_ip, bool in_ros_control = false);
+        void init_with_injected_lifecycle_transport(
+            rclcpp::Node::SharedPtr& node,
+            std::string &server_ip,
+            const std::shared_ptr<DriverLifecycleTransport> &lifecycle_transport,
+            bool in_ros_control = false);
         void shutdown() noexcept;
+        DriverLifecycleCommandResult execute_supervised_lifecycle_command(
+            const DriverLifecycleCommand &command);
 
         void pub_robot_msg(xarm_msgs::msg::RobotMsg &rm_msg);
         void pub_joint_state(sensor_msgs::msg::JointState &js_msg);
@@ -99,7 +109,9 @@ namespace xarm_api
         bool transport_closed_ = false;
         std::atomic<bool> shutdown_started_{false};
         std::atomic<bool> observation_admitted_{false};
+        std::mutex lifecycle_mutex_;
         std::thread joint_state_thread_;
+        std::shared_ptr<DriverLifecycleTransport> lifecycle_transport_;
         DriverAccessPolicy access_policy_;
         int vacuum_gripper_hardware_version_;
         std::string report_type_;
