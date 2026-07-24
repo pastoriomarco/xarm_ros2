@@ -5,15 +5,7 @@
  * Author: Jason Peng <jason@ufactory.cc>
            Vinman <vinman.cub@gmail.com>
  ============================================================================*/
-#include <signal.h>
 #include "xarm_api/xarm_driver.h"
-
-
-void exit_sig_handler(int signum)
-{
-    fprintf(stderr, "[xarm_driver_node] Ctrl-C caught, exit process...\n");
-    exit(-1);
-}
 
 // class XArmDriverRunner
 // {
@@ -170,11 +162,17 @@ int main(int argc, char **argv)
     xarm_api::XArmDriver xarm_driver;
     xarm_driver.init(node, robot_ip);
 
-    signal(SIGINT, exit_sig_handler);
+    auto context = node->get_node_base_interface()->get_context();
+    auto shutdown_callback = context->add_pre_shutdown_callback(
+        [&xarm_driver]() {
+            xarm_driver.shutdown();
+        });
     rclcpp::spin(node);
-    rclcpp::shutdown();
-
-    RCLCPP_INFO(node->get_logger(), "xarm_driver_node over");
+    xarm_driver.shutdown();
+    if (rclcpp::ok(context)) {
+        rclcpp::shutdown(context);
+    }
+    context->remove_pre_shutdown_callback(shutdown_callback);
 
     return 0;
 }

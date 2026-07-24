@@ -31,6 +31,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 
 #include "xarm_api/driver_access_policy.h"
 
@@ -43,24 +44,58 @@ constexpr std::size_t kDriverErrorWarningWords = 2;
 constexpr std::size_t kDriverServoDebugWords = 16;
 constexpr std::size_t kDriverMaximumJoints = kDriverServoDebugWords / 2;
 
+struct DriverRobotIdentity
+{
+  int axis = -1;
+  int device_type = -1;
+  std::string serial;
+};
+
+struct DriverIdentityExpectation
+{
+  int axis = -1;
+  int device_type = -1;
+  std::string serial;
+
+  bool required() const
+  {
+    return axis >= 0 || device_type >= 0 || !serial.empty();
+  }
+
+  bool matches(const DriverRobotIdentity & identity) const
+  {
+    return
+      (axis < 0 || identity.axis == axis) &&
+      (device_type < 0 || identity.device_type == device_type) &&
+      (serial.empty() || identity.serial == serial);
+  }
+};
+
 class DriverLifecycleTransport
 {
 public:
   virtual ~DriverLifecycleTransport() = default;
 
   virtual int connect() = 0;
+  virtual int read_robot_identity(DriverRobotIdentity & identity) = 0;
   virtual int read_error_warning(
     std::array<int, kDriverErrorWarningWords> & error_warning) = 0;
   virtual int read_servo_debug(
     std::array<int, kDriverServoDebugWords> & servo_debug) = 0;
   virtual int clear_error() = 0;
   virtual int set_pose_mode() = 0;
+  virtual void release_callbacks() = 0;
   virtual void disconnect() = 0;
 };
 
 struct DriverStartupObservation
 {
   int connect_result = -1;
+  bool identity_check_required = false;
+  int identity_read_result = -1;
+  bool identity_matched = false;
+  bool failed_identity_cleanup_performed = false;
+  DriverRobotIdentity identity;
   int error_warning_result = -1;
   int servo_debug_result = -1;
   bool failed_connection_cleanup_performed = false;
@@ -74,19 +109,43 @@ struct DriverStartupObservation
   {
     return connect_result == 0;
   }
+
+  bool accepted() const
+  {
+    return connected() &&
+           (!identity_check_required ||
+           (identity_read_result == 0 && identity_matched));
+  }
 };
 
 inline DriverStartupObservation observe_driver_startup(
   DriverLifecycleTransport & transport,
   const DriverAccessPolicy & access_policy,
-  int requested_joint_count)
+  int requested_joint_count,
+  const DriverIdentityExpectation & identity_expectation = {})
 {
   DriverStartupObservation observation;
   observation.connect_result = transport.connect();
   if (!observation.connected()) {
+    transport.release_callbacks();
     transport.disconnect();
     observation.failed_connection_cleanup_performed = true;
     return observation;
+  }
+
+  observation.identity_check_required = identity_expectation.required();
+  if (observation.identity_check_required) {
+    observation.identity_read_result =
+      transport.read_robot_identity(observation.identity);
+    observation.identity_matched =
+      observation.identity_read_result == 0 &&
+      identity_expectation.matches(observation.identity);
+    if (!observation.identity_matched) {
+      transport.release_callbacks();
+      transport.disconnect();
+      observation.failed_identity_cleanup_performed = true;
+      return observation;
+    }
   }
 
   observation.error_warning_result =
@@ -124,6 +183,7 @@ inline void close_driver_transport(
   const DriverAccessPolicy & access_policy,
   bool connected)
 {
+  transport.release_callbacks();
   if (connected && access_policy.permits_shutdown_mode_change()) {
     transport.set_pose_mode();
   }

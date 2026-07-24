@@ -50,6 +50,22 @@ public:
         return arm_ == nullptr ? -1 : arm_->connect();
     }
 
+    int read_robot_identity(xarm_api::DriverRobotIdentity &identity) override
+    {
+        if (arm_ == nullptr) {
+            return -1;
+        }
+        std::array<unsigned char, 40> serial{{0}};
+        const int result = arm_->get_robot_sn(serial.data());
+        if (result == 0) {
+            identity.axis = arm_->axis;
+            identity.device_type = arm_->device_type;
+            identity.serial =
+                reinterpret_cast<const char *>(serial.data());
+        }
+        return result;
+    }
+
     int read_error_warning(
         std::array<int, xarm_api::kDriverErrorWarningWords> &error_warning) override
     {
@@ -73,6 +89,14 @@ public:
         return arm_ == nullptr ? -1 : arm_->set_mode(XARM_MODE::POSE);
     }
 
+    void release_callbacks() override
+    {
+        if (arm_ != nullptr) {
+            arm_->release_connect_changed_callback(true);
+            arm_->release_report_data_callback(true);
+        }
+    }
+
     void disconnect() override
     {
         if (arm_ != nullptr) {
@@ -91,13 +115,35 @@ namespace xarm_api
 
     XArmDriver::~XArmDriver()
     {
-        if (arm == NULL || transport_closed_) {
+        shutdown();
+    }
+
+    void XArmDriver::shutdown() noexcept
+    {
+        if (shutdown_started_.exchange(true)) {
             return;
         }
-        XArmApiLifecycleTransport transport(arm);
-        close_driver_transport(transport, access_policy_, transport_connected_);
-        transport_connected_ = false;
-        transport_closed_ = true;
+        observation_admitted_.store(false);
+        try {
+            if (arm != NULL && !transport_closed_) {
+                XArmApiLifecycleTransport transport(arm);
+                close_driver_transport(
+                    transport, access_policy_, transport_connected_);
+                transport_connected_ = false;
+                transport_closed_ = true;
+            }
+            if (joint_state_thread_.joinable()) {
+                joint_state_thread_.join();
+            }
+        }
+        catch (const std::exception &exception) {
+            fprintf(
+                stderr, "[xarm_driver] shutdown failed safely: %s\n",
+                exception.what());
+        }
+        catch (...) {
+            fprintf(stderr, "[xarm_driver] shutdown failed safely\n");
+        }
     }
 
     bool XArmDriver::_get_wait_param(void) 
@@ -109,11 +155,23 @@ namespace xarm_api
 
     void XArmDriver::_report_connect_changed_callback(bool connected, bool reported)
     {
+        if (
+            shutdown_started_.load() ||
+            !observation_admitted_.load())
+        {
+            return;
+        }
         RCLCPP_INFO(node_->get_logger(), "[TCP STATUS] CONTROL: %d, REPORT: %d", connected, reported);
     }
 
     void XArmDriver::_report_data_callback(XArmReportData *report_data_ptr)
     {
+        if (
+            shutdown_started_.load() ||
+            !observation_admitted_.load())
+        {
+            return;
+        }
         // RCLCPP_INFO(node_->get_logger(), "[1] state: %d, error_code: %d", report_data_ptr->state, report_data_ptr->err);
         curr_state = report_data_ptr->state;
         curr_err = report_data_ptr->err;
@@ -205,11 +263,19 @@ namespace xarm_api
         arm = NULL;
         transport_connected_ = false;
         transport_closed_ = false;
+        shutdown_started_.store(false);
+        observation_admitted_.store(false);
         in_ros_control_ = in_ros_control;
         node_ = node;
         bool read_only = false;
         node_->get_parameter_or("read_only", read_only, false);
         access_policy_ = DriverAccessPolicy(read_only);
+        std::string expected_robot_sn;
+        node_->get_parameter_or(
+            "expected_robot_sn", expected_robot_sn, std::string(""));
+        int expected_robot_device_type = -1;
+        node_->get_parameter_or(
+            "expected_robot_device_type", expected_robot_device_type, -1);
         vacuum_gripper_hardware_version_ = 0;
 
         std::string prefix = "";
@@ -219,6 +285,10 @@ namespace xarm_api
         // hw_ns = prefix + hw_ns;
         hw_node_ = node_->create_sub_node(hw_ns);
         node_->get_parameter_or("dof", dof_, 7);
+        const DriverIdentityExpectation identity_expectation{
+            expected_robot_sn.empty() ? -1 : dof_,
+            expected_robot_device_type,
+            expected_robot_sn};
         node_->get_parameter_or("report_type", report_type_, std::string("normal"));
 
         node_->get_parameter_or("joint_names", joint_names_, 
@@ -275,7 +345,8 @@ namespace xarm_api
         arm->register_report_data_callback(std::bind(&XArmDriver::_report_data_callback, this, std::placeholders::_1));
         XArmApiLifecycleTransport transport(arm);
         const DriverStartupObservation startup =
-            observe_driver_startup(transport, access_policy_, dof_);
+            observe_driver_startup(
+                transport, access_policy_, dof_, identity_expectation);
         if (!startup.connected()) {
             transport_closed_ = startup.failed_connection_cleanup_performed;
             RCLCPP_ERROR(
@@ -284,7 +355,23 @@ namespace xarm_api
                 startup.connect_result);
             return;
         }
+        if (!startup.accepted()) {
+            transport_closed_ = startup.failed_identity_cleanup_performed;
+            RCLCPP_ERROR(
+                node_->get_logger(),
+                "xArm identity verification failed (read_result=%d); "
+                "the connection was closed before startup inspection or "
+                "command endpoint initialization",
+                startup.identity_read_result);
+            return;
+        }
         transport_connected_ = true;
+        observation_admitted_.store(true);
+        if (startup.identity_check_required) {
+            RCLCPP_INFO(
+                node_->get_logger(),
+                "xArm identity verified against the configured expectation");
+        }
 
         if (startup.error_warning_result != 0) {
             RCLCPP_WARN(
@@ -355,7 +442,7 @@ namespace xarm_api
 
         if (!in_ros_control_)
         {
-            std::thread([this]() {
+            joint_state_thread_ = std::thread([this]() {
                 float position[7] = {0};
                 float velocity[7] = {0};
                 float effort[7] = {0};
@@ -372,7 +459,7 @@ namespace xarm_api
                     }
                 }
 
-                while (arm->is_connected())
+                while (!shutdown_started_.load() && arm->is_connected())
                 {
                     if (use_new)
                         arm->get_joint_states(position, velocity, effort, num);
@@ -392,8 +479,10 @@ namespace xarm_api
                     pub_joint_state(joint_state_msg_);
                     std::this_thread::sleep_for(std::chrono::microseconds(microseconds));
                 }
-                RCLCPP_ERROR(node_->get_logger(), "xArm Control Connection Failed! Please Shut Down (Ctrl-C) and Retry ...");
-            }).detach();
+                if (!shutdown_started_.load()) {
+                    RCLCPP_ERROR(node_->get_logger(), "xArm Control Connection Failed! Please Shut Down (Ctrl-C) and Retry ...");
+                }
+            });
         }
 
         if (access_policy_.permits_command_endpoints()) {

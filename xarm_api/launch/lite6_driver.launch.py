@@ -45,6 +45,24 @@ def generate_launch_description():
             ),
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'expected_robot_sn',
+            default_value='',
+            description=(
+                'Optional exact robot serial. When set, startup closes the '
+                'connection before inspection or command initialization if '
+                'the connected controller identity differs.'
+            ),
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'expected_robot_device_type',
+            default_value='-1',
+            description='Optional expected SDK device type; Lite6 is 9.',
+        )
+    )
 
     # Initialize Arguments
     robot_ip = LaunchConfiguration('robot_ip')
@@ -54,6 +72,11 @@ def generate_launch_description():
     add_vacuum_gripper = LaunchConfiguration('add_vacuum_gripper', default=False)
     show_rviz = LaunchConfiguration('show_rviz', default=False)
     read_only = LaunchConfiguration('read_only', default=False)
+    expected_robot_sn = LaunchConfiguration('expected_robot_sn', default='')
+    expected_robot_device_type = LaunchConfiguration(
+        'expected_robot_device_type',
+        default=-1,
+    )
 
     # robot driver launch
     # xarm_api/launch/_robot_driver.launch.py
@@ -69,6 +92,8 @@ def generate_launch_description():
             'show_rviz': show_rviz,
             'robot_type': 'lite',
             'read_only': read_only,
+            'expected_robot_sn': expected_robot_sn,
+            'expected_robot_device_type': expected_robot_device_type,
         }.items(),
     )
 

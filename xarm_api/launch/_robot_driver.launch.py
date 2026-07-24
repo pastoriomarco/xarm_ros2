@@ -62,6 +62,11 @@ def launch_setup(context, *args, **kwargs):
     default_gripper_baud = LaunchConfiguration('default_gripper_baud', default=2000000)
     joint_states_rate = LaunchConfiguration('joint_states_rate', default=-1)
     read_only = LaunchConfiguration('read_only', default=False)
+    expected_robot_sn = LaunchConfiguration('expected_robot_sn', default='')
+    expected_robot_device_type = LaunchConfiguration(
+        'expected_robot_device_type',
+        default=-1,
+    )
 
     show_rviz = LaunchConfiguration('show_rviz', default=False)
     robot_type = LaunchConfiguration('robot_type', default='xarm')
@@ -101,6 +106,8 @@ def launch_setup(context, *args, **kwargs):
                 'default_gripper_baud': default_gripper_baud,
                 'joint_states_rate': joint_states_rate,
                 'read_only': read_only,
+                'expected_robot_sn': expected_robot_sn,
+                'expected_robot_device_type': expected_robot_device_type,
             },
         ]
     )

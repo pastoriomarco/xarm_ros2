@@ -18,6 +18,26 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
 - Jazzy: [jazzy](https://github.com/xArm-Developer/xarm_ros2/tree/jazzy)
 - Rolling: [rolling](https://github.com/xArm-Developer/xarm_ros2/tree/rolling)
 
+### Experimental protected observation mode in this fork
+
+The standalone `xarm_api` driver in the ManyForge integration branches adds
+three opt-in parameters while preserving the existing defaults:
+
+- `read_only:=true` suppresses command services, command subscriptions,
+  gripper actions, automatic startup fault clearing, and the shutdown
+  pose-mode command;
+- `expected_robot_sn:=<14-character serial>` enables exact runtime controller
+  identity verification; and
+- `expected_robot_device_type:=9` additionally requires the Lite6 SDK device
+  type. When a serial is configured, the observed axis count must also match
+  `dof`.
+
+Identity is checked immediately after the vendor connection. A read failure or
+mismatch closes the connection before fault inspection, state publication, or
+command initialization. These parameters do not constitute a safety function,
+and the command-capable `ros2_control` hardware plugin is outside this
+standalone-driver mode.
+
 ## 2. Update History    
 - moveit dual arm control (under single rviz GUI), each arm can be separately configured（e.g. DOF, add_gripper, etc）
 - add support for Gazebo simulation, can be controlled by moveit.

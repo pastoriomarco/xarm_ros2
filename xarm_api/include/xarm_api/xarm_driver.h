@@ -9,6 +9,9 @@
 #ifndef __XARM_DRIVER_H
 #define __XARM_DRIVER_H
 
+#include <atomic>
+#include <thread>
+
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <std_msgs/msg/float32.hpp>
@@ -28,6 +31,7 @@ namespace xarm_api
         XArmDriver() {};
         ~XArmDriver();
         void init(rclcpp::Node::SharedPtr& node, std::string &server_ip, bool in_ros_control = false);
+        void shutdown() noexcept;
 
         void pub_robot_msg(xarm_msgs::msg::RobotMsg &rm_msg);
         void pub_joint_state(sensor_msgs::msg::JointState &js_msg);
@@ -93,6 +97,9 @@ namespace xarm_api
         bool in_ros_control_;
         bool transport_connected_ = false;
         bool transport_closed_ = false;
+        std::atomic<bool> shutdown_started_{false};
+        std::atomic<bool> observation_admitted_{false};
+        std::thread joint_state_thread_;
         DriverAccessPolicy access_policy_;
         int vacuum_gripper_hardware_version_;
         std::string report_type_;
