@@ -21,8 +21,8 @@ For simplified Chinese version: [简体中文版](./ReadMe_cn.md)
 ### Experimental protected observation mode in this fork
 
 The standalone `xarm_api` driver in the ManyForge integration branches adds
-an explicit access policy and identity checks while preserving the existing
-default:
+an explicit access policy and robot-family checks while preserving the
+existing default:
 
 - `access_mode:=legacy_control` preserves the existing command-capable
   behavior and remains the default;
@@ -35,15 +35,14 @@ default:
   no ROS command service or subscription. A separate supervisor must authorize,
   sequence, and verify every primitive; selecting this mode does not itself
   enable or recover the robot;
-- `expected_robot_sn:=<14-character serial>` enables exact runtime controller
-  identity verification; and
-- `expected_robot_device_type:=9` additionally requires the Lite6 SDK device
-  type. When a serial is configured, the observed axis count must also match
-  `dof`.
+- `expected_robot_device_type:=9` requires the Lite6 SDK device type and the
+  observed axis count to match `dof`, without querying or configuring the
+  physical controller serial.
 
-Identity is checked immediately after the vendor connection. A read failure or
-mismatch closes the connection before fault inspection, state publication, or
-command initialization. An unknown access mode, or a conflicting
+Robot-family characteristics are checked immediately after the vendor
+connection. A read failure or mismatch closes the connection before fault
+inspection, state publication, or command initialization. An unknown access
+mode, or a conflicting
 `read_only:=true` plus non-read-only access mode, is rejected before the SDK
 transport is created. These parameters do not constitute a safety function,
 and the existing command-capable `ros2_control` hardware plugin remains a

@@ -48,26 +48,23 @@ struct DriverRobotIdentity
 {
   int axis = -1;
   int device_type = -1;
-  std::string serial;
 };
 
 struct DriverIdentityExpectation
 {
   int axis = -1;
   int device_type = -1;
-  std::string serial;
 
   bool required() const
   {
-    return axis >= 0 || device_type >= 0 || !serial.empty();
+    return axis >= 0 || device_type >= 0;
   }
 
   bool matches(const DriverRobotIdentity & identity) const
   {
     return
       (axis < 0 || identity.axis == axis) &&
-      (device_type < 0 || identity.device_type == device_type) &&
-      (serial.empty() || identity.serial == serial);
+      (device_type < 0 || identity.device_type == device_type);
   }
 };
 

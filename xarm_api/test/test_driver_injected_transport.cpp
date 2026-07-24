@@ -162,7 +162,7 @@ public:
   int last_mode = -1;
   int last_state = -1;
   std::vector<std::string> events;
-  xarm_api::DriverRobotIdentity identity{6, 9, "EXPECTED000001"};
+  xarm_api::DriverRobotIdentity identity{6, 9};
   std::array<int, xarm_api::kDriverErrorWarningWords> error_warning{{0, 0}};
   std::array<int, xarm_api::kDriverServoDebugWords> servo_debug{{0}};
 };
@@ -197,8 +197,6 @@ protected:
       options.append_parameter_override("access_mode", access_mode);
     }
     options.append_parameter_override("dof", 6);
-    options.append_parameter_override(
-      "expected_robot_sn", std::string("EXPECTED000001"));
     options.append_parameter_override("expected_robot_device_type", 9);
     options.append_parameter_override("add_gripper", add_gripper);
     return rclcpp::Node::make_shared(name, options);
@@ -354,7 +352,7 @@ TEST_F(DriverInjectedTransportTest, InvalidAccessModeFailsBeforeTransport)
 TEST_F(DriverInjectedTransportTest, IdentityMismatchFailsBeforeInspection)
 {
   auto transport = std::make_shared<FakeInjectedLifecycleTransport>();
-  transport->identity.serial = "DIFFERENT00001";
+  transport->identity.device_type = 12;
   auto node = make_node("mismatched_injected_driver", true);
   std::string unused_address = "not-contacted.invalid";
 

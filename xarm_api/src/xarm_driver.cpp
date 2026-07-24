@@ -52,18 +52,12 @@ public:
 
     int read_robot_identity(xarm_api::DriverRobotIdentity &identity) override
     {
-        if (arm_ == nullptr) {
+        if (arm_ == nullptr || !arm_->is_connected()) {
             return -1;
         }
-        std::array<unsigned char, 40> serial{{0}};
-        const int result = arm_->get_robot_sn(serial.data());
-        if (result == 0) {
-            identity.axis = arm_->axis;
-            identity.device_type = arm_->device_type;
-            identity.serial =
-                reinterpret_cast<const char *>(serial.data());
-        }
-        return result;
+        identity.axis = arm_->axis;
+        identity.device_type = arm_->device_type;
+        return 0;
     }
 
     int read_error_warning(
@@ -338,9 +332,6 @@ namespace xarm_api
             }
             access_policy_ = DriverAccessPolicy(parsed_mode);
         }
-        std::string expected_robot_sn;
-        node_->get_parameter_or(
-            "expected_robot_sn", expected_robot_sn, std::string(""));
         int expected_robot_device_type = -1;
         node_->get_parameter_or(
             "expected_robot_device_type", expected_robot_device_type, -1);
@@ -354,9 +345,8 @@ namespace xarm_api
         hw_node_ = node_->create_sub_node(hw_ns);
         node_->get_parameter_or("dof", dof_, 7);
         const DriverIdentityExpectation identity_expectation{
-            expected_robot_sn.empty() ? -1 : dof_,
-            expected_robot_device_type,
-            expected_robot_sn};
+            expected_robot_device_type < 0 ? -1 : dof_,
+            expected_robot_device_type};
         node_->get_parameter_or("report_type", report_type_, std::string("normal"));
 
         node_->get_parameter_or("joint_names", joint_names_, 

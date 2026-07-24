@@ -151,7 +151,7 @@ public:
   int last_mode = -1;
   int last_state = -1;
   std::vector<std::string> events;
-  xarm_api::DriverRobotIdentity identity{6, 9, "EXPECTED000001"};
+  xarm_api::DriverRobotIdentity identity{6, 9};
   std::array<int, xarm_api::kDriverErrorWarningWords> error_warning{{0, 0}};
   std::array<int, xarm_api::kDriverServoDebugWords> servo_debug{{0}};
 };
@@ -329,8 +329,7 @@ TEST(DriverLifecycle, MatchingIdentityPrecedesInspectionAndCommands)
   FakeLifecycleTransport transport;
   transport.servo_debug[0] = 1;
   transport.servo_debug[1] = 40;
-  const xarm_api::DriverIdentityExpectation expected{
-    6, 9, "EXPECTED000001"};
+  const xarm_api::DriverIdentityExpectation expected{6, 9};
 
   const xarm_api::DriverStartupObservation observation =
     xarm_api::observe_driver_startup(
@@ -351,43 +350,13 @@ TEST(DriverLifecycle, MatchingIdentityPrecedesInspectionAndCommands)
     transport.events);
 }
 
-TEST(DriverLifecycle, IdentityMismatchClosesBeforeInspectionOrCommands)
-{
-  FakeLifecycleTransport transport;
-  transport.identity.serial = "DIFFERENT00001";
-  transport.servo_debug[0] = 1;
-  transport.servo_debug[1] = 40;
-  const xarm_api::DriverIdentityExpectation expected{
-    6, 9, "EXPECTED000001"};
-
-  const xarm_api::DriverStartupObservation observation =
-    xarm_api::observe_driver_startup(
-    transport, xarm_api::DriverAccessPolicy(false), 6, expected);
-
-  EXPECT_TRUE(observation.connected());
-  EXPECT_FALSE(observation.accepted());
-  EXPECT_FALSE(observation.identity_matched);
-  EXPECT_TRUE(observation.failed_identity_cleanup_performed);
-  EXPECT_EQ(1, transport.identity_read_calls);
-  EXPECT_EQ(0, transport.error_warning_read_calls);
-  EXPECT_EQ(0, transport.servo_debug_read_calls);
-  EXPECT_EQ(0, transport.clear_error_calls);
-  EXPECT_EQ(1, transport.release_callbacks_calls);
-  EXPECT_EQ(1, transport.disconnect_calls);
-  EXPECT_EQ(
-    (std::vector<std::string>{
-    "read_robot_identity", "release_callbacks", "disconnect"}),
-    transport.events);
-}
-
 TEST(DriverLifecycle, AxisOrDeviceMismatchClosesBeforeInspectionOrCommands)
 {
   const std::array<xarm_api::DriverRobotIdentity, 2> mismatches{{
-    {7, 9, "EXPECTED000001"},
-    {6, 12, "EXPECTED000001"},
+    {7, 9},
+    {6, 12},
   }};
-  const xarm_api::DriverIdentityExpectation expected{
-    6, 9, "EXPECTED000001"};
+  const xarm_api::DriverIdentityExpectation expected{6, 9};
 
   for (const auto & mismatch : mismatches) {
     FakeLifecycleTransport transport;
@@ -411,8 +380,7 @@ TEST(DriverLifecycle, IdentityReadFailureClosesBeforeInspectionOrCommands)
 {
   FakeLifecycleTransport transport;
   transport.identity_read_result = -9;
-  const xarm_api::DriverIdentityExpectation expected{
-    6, 9, "EXPECTED000001"};
+  const xarm_api::DriverIdentityExpectation expected{6, 9};
 
   const xarm_api::DriverStartupObservation observation =
     xarm_api::observe_driver_startup(
