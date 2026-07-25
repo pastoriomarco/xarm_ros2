@@ -159,6 +159,7 @@ namespace uf_robot_hardware
         std::int64_t supervised_observation_lease_ns_ = 250000000;
         std::int64_t supervised_joint_state_lease_ns_ = 100000000;
         std::int64_t supervised_io_period_ns_ = 5000000;
+        std::int64_t supervised_transport_loss_timeout_ns_ = 2000000000;
         std::int64_t supervised_max_gate_lease_ns_ = 250000000;
         double supervised_source_agreement_tolerance_rad_ = 0.002;
         std::size_t supervised_position_initialization_samples_ = 3;

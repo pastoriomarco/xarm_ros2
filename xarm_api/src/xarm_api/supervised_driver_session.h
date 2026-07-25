@@ -120,6 +120,11 @@ private:
   void initialize(bool start_io_worker);
   void handle_report(const SupervisedDriverReport & report);
   void handle_connection(bool connected, bool report_connected);
+  void evaluate_transport_health(
+    std::int64_t now_ns,
+    bool transport_claimed_connected,
+    bool joint_read_succeeded);
+  void require_process_restart(bool control_lost, bool report_lost);
   void set_position_valid(bool valid, int return_code);
   void set_last_joint_write_return(int return_code);
   bool close_command_gate_locked() noexcept;
@@ -145,6 +150,8 @@ private:
   std::atomic<bool> position_initialized_{false};
   std::atomic<std::size_t> position_initialization_match_count_{0};
   std::uint64_t last_position_initialization_report_generation_ = 0;
+  std::int64_t loss_detection_started_ns_ = 0;
+  std::int64_t last_joint_read_success_ns_ = 0;
   std::atomic<bool> startup_completed_{false};
   std::atomic<bool> process_restart_required_{false};
   std::atomic<std::uint64_t> joint_write_attempt_count_{0};

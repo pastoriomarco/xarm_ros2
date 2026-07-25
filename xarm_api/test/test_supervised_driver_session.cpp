@@ -286,6 +286,7 @@ xarm_api::SupervisedDriverSessionConfig make_config()
   config.observation_lease_ns = 10000000000LL;
   config.joint_state_lease_ns = 10000000000LL;
   config.io_period_ns = 1000000LL;
+  config.transport_loss_timeout_ns = 20000000000LL;
   return config;
 }
 
@@ -598,6 +599,93 @@ TEST(SupervisedDriverSession, ReportTransportLossRequiresFreshProcess)
   EXPECT_STREQ("process_restart_required", lifecycle_result.reason);
   EXPECT_EQ(0, rig.state->clear_error_calls);
   EXPECT_FALSE(rig.session->ready());
+}
+
+TEST(
+  SupervisedDriverSession,
+  ProlongedSdkStalenessRequiresFreshProcessWithoutDisconnectCallback)
+{
+  auto config = make_config();
+  config.observation_lease_ns = 100000000LL;
+  config.joint_state_lease_ns = 100000000LL;
+  config.transport_loss_timeout_ns = 250000000LL;
+  auto rig = make_rig(std::move(config));
+  initialize_powered_pose(rig);
+  ASSERT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+
+  rig.state->joint_read_result = -1;
+  std::this_thread::sleep_for(std::chrono::milliseconds(400));
+  rig.session->service_io_once();
+
+  const auto observation = rig.session->observe(0);
+  EXPECT_TRUE(rig.state->connected);
+  EXPECT_FALSE(observation.connected);
+  EXPECT_FALSE(observation.report_connected);
+  EXPECT_FALSE(observation.identity_verified);
+  EXPECT_TRUE(observation.process_restart_required);
+  EXPECT_FALSE(observation.report_received);
+  EXPECT_FALSE(observation.position_valid);
+  EXPECT_FALSE(observation.command_gate_open);
+  EXPECT_EQ(-1, observation.last_joint_read_return_code);
+  EXPECT_FALSE(rig.session->ready());
+
+  rig.state->joint_read_result = 0;
+  rig.transport->emit_connection(true, true);
+  emit_powered_pose_samples(rig);
+  EXPECT_TRUE(rig.state->connected);
+  EXPECT_FALSE(rig.session->ready());
+  EXPECT_FALSE(rig.session->observe(0).position_valid);
+  EXPECT_EQ(4, rig.state->joint_read_calls);
+}
+
+TEST(
+  SupervisedDriverSession,
+  TransientJointReadFailureFencesWithoutTerminatingSession)
+{
+  auto rig = make_rig();
+  initialize_powered_pose(rig);
+  ASSERT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+
+  rig.state->joint_read_result = -1;
+  rig.session->service_io_once();
+
+  auto observation = rig.session->observe(0);
+  EXPECT_TRUE(observation.connected);
+  EXPECT_TRUE(observation.report_connected);
+  EXPECT_FALSE(observation.process_restart_required);
+  EXPECT_FALSE(observation.position_valid);
+  EXPECT_FALSE(observation.command_gate_open);
+  EXPECT_TRUE(rig.session->ready());
+
+  rig.state->joint_read_result = 0;
+  emit_powered_pose_samples(rig);
+  observation = rig.session->observe(0);
+  EXPECT_FALSE(observation.process_restart_required);
+  EXPECT_TRUE(observation.position_valid);
+  EXPECT_TRUE(rig.session->ready());
+}
+
+TEST(
+  SupervisedDriverSession,
+  ReportStalenessPreservesControlTransportDiagnostic)
+{
+  auto config = make_config();
+  config.observation_lease_ns = 100000000LL;
+  config.joint_state_lease_ns = 100000000LL;
+  config.transport_loss_timeout_ns = 250000000LL;
+  auto rig = make_rig(std::move(config));
+  initialize_powered_pose(rig);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(400));
+  rig.session->service_io_once();
+
+  const auto observation = rig.session->observe(0);
+  EXPECT_TRUE(observation.connected);
+  EXPECT_FALSE(observation.report_connected);
+  EXPECT_TRUE(observation.process_restart_required);
+  EXPECT_FALSE(observation.identity_verified);
+  EXPECT_FALSE(observation.report_received);
+  EXPECT_FALSE(observation.position_valid);
 }
 
 TEST(SupervisedDriverSession, LifecycleExecutesOneExactPrimitiveAndFencesMotion)

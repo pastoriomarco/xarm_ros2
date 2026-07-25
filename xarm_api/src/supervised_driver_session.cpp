@@ -525,9 +525,11 @@ void SupervisedDriverSession::service_io_once()
   std::array<float, kSupervisedDriverMaximumJoints> velocities{{0.0F}};
   int read_return = -1;
   bool joint_read_attempted = false;
+  bool transport_claimed_connected = false;
   {
     std::lock_guard<std::mutex> lock(sdk_mutex_);
-    if (transport_->connected()) {
+    transport_claimed_connected = transport_->connected();
+    if (transport_claimed_connected) {
       joint_read_attempted = true;
       read_return = transport_->read_joint_state(
         positions, velocities, config_.joint_count);
@@ -539,6 +541,10 @@ void SupervisedDriverSession::service_io_once()
     if (read_return == 0) {
       ++observation_.joint_read_success_count;
     }
+  }
+  const std::int64_t health_check_ns = steady_now_ns();
+  if (read_return == 0) {
+    last_joint_read_success_ns_ = health_check_ns;
   }
   bool finite_state = read_return == 0;
   for (std::size_t index = 0;
@@ -624,6 +630,13 @@ void SupervisedDriverSession::service_io_once()
     joint_valid_.store(false, std::memory_order_release);
     set_position_valid(false, read_return);
     close_command_gate(false);
+  }
+  evaluate_transport_health(
+    health_check_ns,
+    transport_claimed_connected,
+    joint_read_attempted && read_return == 0);
+  if (process_restart_required_.load(std::memory_order_acquire)) {
+    return;
   }
 
   if (!command_gate_open_.load(std::memory_order_acquire)) {
@@ -734,6 +747,8 @@ void SupervisedDriverSession::initialize(bool start_io_worker)
   if (config_.observation_lease_ns <= 0 ||
     config_.joint_state_lease_ns <= 0 ||
     config_.io_period_ns <= 0 ||
+    config_.transport_loss_timeout_ns <= config_.observation_lease_ns ||
+    config_.transport_loss_timeout_ns <= config_.joint_state_lease_ns ||
     !std::isfinite(config_.source_agreement_tolerance_rad) ||
     config_.source_agreement_tolerance_rad <= 0.0 ||
     config_.position_initialization_samples == 0)
@@ -795,6 +810,8 @@ void SupervisedDriverSession::initialize(bool start_io_worker)
     observation_.generation = next_observation_generation_++;
   }
   startup_completed_.store(true, std::memory_order_release);
+  loss_detection_started_ns_ = steady_now_ns();
+  last_joint_read_success_ns_ = loss_detection_started_ns_;
   if (start_io_worker) {
     io_worker_ = std::thread([this]() {run_io_worker();});
   }
@@ -912,6 +929,70 @@ void SupervisedDriverSession::handle_connection(
     gate_lock.unlock();
     worker_condition_.notify_one();
   }
+}
+
+void SupervisedDriverSession::evaluate_transport_health(
+  std::int64_t now_ns,
+  bool transport_claimed_connected,
+  bool joint_read_succeeded)
+{
+  if (close_started_.load() ||
+    process_restart_required_.load(std::memory_order_acquire) ||
+    !startup_completed_.load(std::memory_order_acquire))
+  {
+    return;
+  }
+
+  std::int64_t last_report_ns = loss_detection_started_ns_;
+  {
+    std::lock_guard<std::mutex> lock(observation_mutex_);
+    if (observation_.report_received &&
+      observation_.source_timestamp_ns > 0)
+    {
+      last_report_ns = observation_.source_timestamp_ns;
+    }
+  }
+  const bool report_lost =
+    now_ns >= last_report_ns &&
+    now_ns - last_report_ns >= config_.transport_loss_timeout_ns;
+  const bool control_lost =
+    !transport_claimed_connected ||
+    (!joint_read_succeeded &&
+    now_ns >= last_joint_read_success_ns_ &&
+    now_ns - last_joint_read_success_ns_ >=
+    config_.transport_loss_timeout_ns);
+  if (control_lost || report_lost) {
+    require_process_restart(control_lost, report_lost);
+  }
+}
+
+void SupervisedDriverSession::require_process_restart(
+  bool control_lost, bool report_lost)
+{
+  process_restart_required_.store(true, std::memory_order_release);
+  std::unique_lock<std::mutex> gate_lock(gate_control_mutex_);
+  static_cast<void>(close_command_gate_locked());
+  position_initialized_.store(false, std::memory_order_release);
+  position_initialization_match_count_.store(
+    0, std::memory_order_release);
+  joint_valid_.store(false, std::memory_order_release);
+
+  std::lock_guard<std::mutex> lock(observation_mutex_);
+  if (control_lost) {
+    observation_.connected = false;
+  }
+  if (report_lost) {
+    observation_.report_connected = false;
+    observation_.report_received = false;
+    observation_.source_timestamp_ns = 0;
+    observation_.fresh_until_ns = 0;
+  }
+  observation_.identity_verified = false;
+  observation_.process_restart_required = true;
+  observation_.position_valid = false;
+  observation_.generation = next_observation_generation_++;
+  gate_lock.unlock();
+  worker_condition_.notify_one();
 }
 
 void SupervisedDriverSession::set_position_valid(

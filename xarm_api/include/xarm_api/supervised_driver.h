@@ -99,6 +99,7 @@ struct SupervisedDriverConfig
   std::int64_t observation_lease_ns = 250000000;
   std::int64_t joint_state_lease_ns = 100000000;
   std::int64_t io_period_ns = 5000000;
+  std::int64_t transport_loss_timeout_ns = 2000000000;
   double source_agreement_tolerance_rad = 0.002;
   std::size_t position_initialization_samples = 3;
 };

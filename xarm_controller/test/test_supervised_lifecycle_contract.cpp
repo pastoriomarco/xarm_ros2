@@ -39,7 +39,54 @@ namespace
 {
 using uf_robot_hardware::SupervisedCommandRecord;
 using uf_robot_hardware::SupervisedCommandReplayCache;
+using uf_robot_hardware::SupervisedReadDisposition;
 using uf_robot_hardware::SupervisedReplayDisposition;
+using uf_robot_hardware::SupervisedWriteDisposition;
+
+TEST(SupervisedLifecycleContract, HoldsInvalidPositionWhileOwnerCanFence)
+{
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_read_disposition(true, false),
+    SupervisedReadDisposition::kHoldLastState);
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_read_disposition(false, false),
+    SupervisedReadDisposition::kFault);
+}
+
+TEST(SupervisedLifecycleContract, PublishesValidPosition)
+{
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_read_disposition(true, true),
+    SupervisedReadDisposition::kPublishSample);
+}
+
+TEST(SupervisedLifecycleContract, HoldsFencedCommandWithoutHardwareFault)
+{
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_write_disposition(
+      true, true, true, false),
+    SupervisedWriteDisposition::kFenced);
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_write_disposition(
+      true, true, true, true),
+    SupervisedWriteDisposition::kDelivered);
+}
+
+TEST(SupervisedLifecycleContract, FaultsInvalidWritePreconditions)
+{
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_write_disposition(
+      false, true, true, false),
+    SupervisedWriteDisposition::kFault);
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_write_disposition(
+      true, false, true, false),
+    SupervisedWriteDisposition::kFault);
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_write_disposition(
+      true, true, false, false),
+    SupervisedWriteDisposition::kFault);
+}
 
 TEST(SupervisedLifecycleContract, MapsOnlySevenNamedPrimitives)
 {

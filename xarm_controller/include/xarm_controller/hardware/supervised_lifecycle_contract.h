@@ -57,6 +57,20 @@ enum class SupervisedReplayDisposition
   kConflict,
 };
 
+enum class SupervisedReadDisposition
+{
+  kPublishSample,
+  kHoldLastState,
+  kFault,
+};
+
+enum class SupervisedWriteDisposition
+{
+  kDelivered,
+  kFenced,
+  kFault,
+};
+
 class SupervisedCommandReplayCache
 {
 public:
@@ -76,6 +90,16 @@ private:
 };
 
 bool valid_supervised_request_id(const std::string & request_id);
+
+SupervisedReadDisposition supervised_read_disposition(
+  bool driver_available,
+  bool joint_sample_available);
+
+SupervisedWriteDisposition supervised_write_disposition(
+  bool driver_available,
+  bool hardware_active,
+  bool command_valid,
+  bool submission_accepted);
 
 bool map_supervised_command(
   std::uint8_t command,

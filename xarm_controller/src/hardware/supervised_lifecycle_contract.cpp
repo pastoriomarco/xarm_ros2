@@ -103,6 +103,39 @@ bool valid_supervised_request_id(const std::string & request_id)
     });
 }
 
+SupervisedReadDisposition supervised_read_disposition(
+  bool driver_available,
+  bool joint_sample_available)
+{
+  if (driver_available && joint_sample_available) {
+    return SupervisedReadDisposition::kPublishSample;
+  }
+  if (driver_available) {
+    // The SDK owner closes its command gate before invalidating the sample.
+    // Hold the last state (initially NaN) so a transient poll failure or
+    // interlock preserves diagnostics instead of tearing down the sole owner.
+    return SupervisedReadDisposition::kHoldLastState;
+  }
+  return SupervisedReadDisposition::kFault;
+}
+
+SupervisedWriteDisposition supervised_write_disposition(
+  bool driver_available,
+  bool hardware_active,
+  bool command_valid,
+  bool submission_accepted)
+{
+  if (!driver_available || !hardware_active || !command_valid) {
+    return SupervisedWriteDisposition::kFault;
+  }
+  // A closed or concurrently expired command gate is a normal fail-safe
+  // fence. The hardware owner remains healthy and observable; no SDK write
+  // was accepted.
+  return submission_accepted ?
+         SupervisedWriteDisposition::kDelivered :
+         SupervisedWriteDisposition::kFenced;
+}
+
 bool map_supervised_command(
   std::uint8_t command,
   xarm_api::DriverLifecycleCommand & primitive)

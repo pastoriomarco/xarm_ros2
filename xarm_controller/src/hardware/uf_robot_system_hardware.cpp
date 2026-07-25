@@ -318,6 +318,9 @@ namespace uf_robot_hardware
                     "io_period_ms",
                     supervised_io_period_ns_) ||
                 !parse_milliseconds(
+                    "transport_loss_timeout_ms",
+                    supervised_transport_loss_timeout_ns_) ||
+                !parse_milliseconds(
                     "command_gate_max_lease_ms",
                     supervised_max_gate_lease_ns_))
             {
@@ -538,7 +541,10 @@ namespace uf_robot_hardware
                     "[%s] Supervised hardware activation refused: "
                     "the observed robot is not command-ready",
                     robot_ip_.c_str());
-                return CallbackReturn::ERROR;
+                // An admission interlock is retryable, not a critical
+                // hardware fault. Keep the configured observation session
+                // inactive instead of invoking on_error() and tearing it down.
+                return CallbackReturn::FAILURE;
             }
             for (std::size_t index = 0;
                 index < info_.joints.size(); ++index)
@@ -629,11 +635,24 @@ namespace uf_robot_hardware
             xarm_api::SupervisedDriver * driver =
                 supervised_rt_driver_.load(std::memory_order_acquire);
             xarm_api::SupervisedDriverJointState joint_state;
-            if (driver == nullptr ||
-                !driver->read_joint_state(joint_state) ||
+            const bool sample_available =
+                driver != nullptr &&
+                driver->read_joint_state(joint_state);
+            if (sample_available &&
                 joint_state.joint_count != info_.joints.size())
             {
                 return hardware_interface::return_type::ERROR;
+            }
+            switch (supervised_read_disposition(
+                    driver != nullptr,
+                    sample_available))
+            {
+                case SupervisedReadDisposition::kHoldLastState:
+                    return hardware_interface::return_type::OK;
+                case SupervisedReadDisposition::kFault:
+                    return hardware_interface::return_type::ERROR;
+                case SupervisedReadDisposition::kPublishSample:
+                    break;
             }
             for (std::size_t index = 0;
                 index < info_.joints.size(); ++index)
@@ -691,28 +710,38 @@ namespace uf_robot_hardware
         if (supervised_lifecycle_) {
             xarm_api::SupervisedDriver * driver =
                 supervised_rt_driver_.load(std::memory_order_acquire);
-            if (driver == nullptr ||
-                !supervised_hardware_active_.load(
-                    std::memory_order_acquire) ||
-                position_cmds_.size() > xarm_api::kSupervisedDriverMaximumJoints)
-            {
-                return hardware_interface::return_type::ERROR;
-            }
+            const bool hardware_active =
+                supervised_hardware_active_.load(
+                    std::memory_order_acquire);
+            bool command_valid =
+                position_cmds_.size() <=
+                xarm_api::kSupervisedDriverMaximumJoints;
             std::array<
                 double,
                 xarm_api::kSupervisedDriverMaximumJoints> positions{{0.0}};
             for (std::size_t index = 0;
-                index < position_cmds_.size(); ++index)
+                command_valid && index < position_cmds_.size(); ++index)
             {
                 if (!std::isfinite(position_cmds_[index])) {
-                    return hardware_interface::return_type::ERROR;
+                    command_valid = false;
+                    break;
                 }
                 positions[index] = position_cmds_[index];
             }
-            return driver->submit_joint_position_command(
-                positions, position_cmds_.size()) ?
-                hardware_interface::return_type::OK :
-                hardware_interface::return_type::ERROR;
+            const bool submission_accepted =
+                driver != nullptr &&
+                hardware_active &&
+                command_valid &&
+                driver->submit_joint_position_command(
+                    positions, position_cmds_.size());
+            const auto disposition = supervised_write_disposition(
+                driver != nullptr,
+                hardware_active,
+                command_valid,
+                submission_accepted);
+            return disposition == SupervisedWriteDisposition::kFault ?
+                   hardware_interface::return_type::ERROR :
+                   hardware_interface::return_type::OK;
         }
 
         if (_need_reset()) {
@@ -792,6 +821,8 @@ namespace uf_robot_hardware
         config.observation_lease_ns = supervised_observation_lease_ns_;
         config.joint_state_lease_ns = supervised_joint_state_lease_ns_;
         config.io_period_ns = supervised_io_period_ns_;
+        config.transport_loss_timeout_ns =
+            supervised_transport_loss_timeout_ns_;
         config.source_agreement_tolerance_rad =
             supervised_source_agreement_tolerance_rad_;
         config.position_initialization_samples =
