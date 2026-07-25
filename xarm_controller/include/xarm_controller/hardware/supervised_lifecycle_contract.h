@@ -101,6 +101,8 @@ SupervisedWriteDisposition supervised_write_disposition(
   bool command_valid,
   bool submission_accepted);
 
+bool supervised_initial_activation_state(int state);
+
 bool map_supervised_command(
   std::uint8_t command,
   xarm_api::DriverLifecycleCommand & primitive);

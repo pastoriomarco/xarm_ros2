@@ -318,7 +318,7 @@ SessionRig make_rig(
 void emit_powered_pose_samples(SessionRig & rig)
 {
   xarm_api::SupervisedDriverReport report;
-  report.state = 0;
+  report.state = 2;
   report.mode = 1;
   report.brake_mask = 63;
   report.servo_enable_mask = 63;
@@ -783,13 +783,16 @@ TEST(SupervisedDriverSession, CommandGateRequiresCommandCapableServoState)
   EXPECT_FALSE(rig.session->set_command_gate(true, future_deadline()));
 
   report.state = 0;
-  report.mode = 0;
+  report.mode = 1;
   rig.transport->emit_report(report);
   EXPECT_TRUE(rig.session->observe(0).position_valid);
   EXPECT_FALSE(rig.session->set_command_gate(true, future_deadline()));
 
+  report.state = 2;
+  rig.transport->emit_report(report);
+  EXPECT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+
   report.state = 1;
-  report.mode = 1;
   rig.transport->emit_report(report);
   EXPECT_TRUE(rig.session->set_command_gate(true, future_deadline()));
 

@@ -528,8 +528,8 @@ namespace uf_robot_hardware
                 (observation.report.servo_enable_mask & expected_mask) ==
                 expected_mask &&
                 observation.report.mode == 1 &&
-                (observation.report.state == 0 ||
-                observation.report.state == 2) &&
+                supervised_initial_activation_state(
+                    observation.report.state) &&
                 supervised_driver_->read_joint_state(joint_state) &&
                 joint_state.joint_count == info_.joints.size();
             if (!ready) {

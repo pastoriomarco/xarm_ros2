@@ -61,6 +61,24 @@ one explicit C++ call in `supervised_lifecycle`. It does not define the
 robot-specific transition sequence. Firmware-derived features, including the
 auxiliary gripper-status socket, remain disabled without a native SDK object.
 
+The ManyForge `ros2_control` owner adds a separate restricted ROS boundary
+around the same private supervised session. Its ready transition preserves
+the vendor distinction between a request and observed feedback:
+
+1. selecting joint-servo mode sends `set_mode(1)` and is expected to produce
+   state `5` (`MODE_CHANGED`);
+2. the supervisor then sends `set_state(0)` to request standby;
+3. the owner waits for observed state `2` (`READY`) before hardware
+   activation or command admission.
+
+Observed state `0` is transitional and does not open the command gate. The
+gate accepts only fresh joint-servo feedback state `1` (`MOVING`) or state `2`
+(`READY`), while initial hardware activation requires state `2`. These
+semantics follow UFACTORY's [robot state and mode
+explanation](https://docs.supportarticle.ufactory.cc/support_articles/developer/robot-state-and-mode-explanation.html)
+and upstream [ROS mode-change
+sequence](https://github.com/xArm-Developer/xarm_ros#6-mode-change).
+
 ## 2. Update History    
 - moveit dual arm control (under single rviz GUI), each arm can be separately configured（e.g. DOF, add_gripper, etc）
 - add support for Gazebo simulation, can be controlled by moveit.

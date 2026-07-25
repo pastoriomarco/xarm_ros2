@@ -88,6 +88,14 @@ TEST(SupervisedLifecycleContract, FaultsInvalidWritePreconditions)
     SupervisedWriteDisposition::kFault);
 }
 
+TEST(SupervisedLifecycleContract, ActivatesOnlyFromObservedReadyFeedback)
+{
+  EXPECT_FALSE(uf_robot_hardware::supervised_initial_activation_state(0));
+  EXPECT_FALSE(uf_robot_hardware::supervised_initial_activation_state(1));
+  EXPECT_TRUE(uf_robot_hardware::supervised_initial_activation_state(2));
+  EXPECT_FALSE(uf_robot_hardware::supervised_initial_activation_state(5));
+}
+
 TEST(SupervisedLifecycleContract, MapsOnlySevenNamedPrimitives)
 {
   using Request =

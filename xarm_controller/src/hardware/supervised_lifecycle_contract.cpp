@@ -40,7 +40,8 @@ namespace
 {
 constexpr int kAllServos = 8;
 constexpr int kJointServoMode = 1;
-constexpr int kReadyState = 0;
+constexpr int kStandbyStateRequest = 0;
+constexpr int kReadyFeedbackState = 2;
 constexpr int kStoppedState = 4;
 }  // namespace
 
@@ -136,6 +137,14 @@ SupervisedWriteDisposition supervised_write_disposition(
          SupervisedWriteDisposition::kFenced;
 }
 
+bool supervised_initial_activation_state(int state)
+{
+  // set_state(0) requests standby. UFACTORY reports state 2 only after the
+  // selected mode is READY; initial hardware activation must wait for that
+  // observed postcondition. State 1 is valid only after motion is admitted.
+  return state == kReadyFeedbackState;
+}
+
 bool map_supervised_command(
   std::uint8_t command,
   xarm_api::DriverLifecycleCommand & primitive)
@@ -171,7 +180,7 @@ bool map_supervised_command(
     case Request::SET_READY_STATE:
       primitive = {
         xarm_api::DriverLifecycleCommandKind::kSetState,
-        kReadyState, kAllServos};
+        kStandbyStateRequest, kAllServos};
       return true;
     case Request::SET_STOPPED_STATE:
       primitive = {

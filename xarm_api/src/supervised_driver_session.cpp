@@ -51,10 +51,11 @@ std::int64_t saturating_add(
 
 bool command_path_state(int state)
 {
-  // xArm states 0 (ready), 1 (moving), and 2 (sleeping) remain accepted by
-  // the vendor's servo command path. States 3+ are suspended/stopped/reset
-  // states and must fence command delivery.
-  return state >= 0 && state <= 2;
+  // UFACTORY documents feedback state 1 as MOVING and state 2 as READY.
+  // State 0 is the standby state requested through set_state(0), not the
+  // command-ready feedback reached after that request. Keep the gate closed
+  // during that transition and for every stopped/interlocked state.
+  return state == 1 || state == 2;
 }
 
 class XArmApiSupervisedTransport final
