@@ -63,6 +63,7 @@ include_directories(
 set(dependencies "rclcpp" "rclcpp_action" "std_msgs" "sensor_msgs" "control_msgs" "geometry_msgs" "xarm_msgs")
 
 add_library(xarm_ros_driver SHARED
+  src/supervised_driver_session.cpp
   src/xarm_driver.cpp
   src/xarm_driver_service.cpp
 )
@@ -79,6 +80,14 @@ if(BUILD_TESTING)
   target_include_directories(test_driver_injected_transport PRIVATE include)
   ament_target_dependencies(test_driver_injected_transport ${dependencies})
   target_link_libraries(test_driver_injected_transport
+    xarm_ros_driver
+    ${ament_LIBRARIES}
+  )
+  ament_add_gtest(test_driver_supervised_session
+    test/test_supervised_driver_session.cpp
+  )
+  target_include_directories(test_driver_supervised_session PRIVATE include src)
+  target_link_libraries(test_driver_supervised_session
     xarm_ros_driver
     ${ament_LIBRARIES}
   )
