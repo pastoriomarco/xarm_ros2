@@ -14,7 +14,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic
     -Wno-sign-compare
-    -Wno-unused-parameter 
+    -Wno-unused-parameter
   )
 endif()
 
@@ -26,6 +26,7 @@ find_package(ament_cmake REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files
   #set(ament_cmake_copyright_FOUND TRUE)
@@ -50,6 +51,7 @@ find_package(xarm_sdk REQUIRED)
 add_library(
   uf_robot_hardware
   SHARED
+  src/hardware/supervised_lifecycle_contract.cpp
   src/hardware/uf_robot_system_hardware.cpp
   src/hardware/uf_robot_fake_system_hardware.cpp
 )
@@ -73,6 +75,8 @@ ament_target_dependencies(
   sensor_msgs
   controller_manager_msgs
   xarm_msgs
+  xarm_api
+  xarm_sdk
 )
 
 # message(STATUS "xarm_sdk_INCLUDE_DIRS: ${xarm_sdk_INCLUDE_DIRS}")
@@ -80,10 +84,47 @@ ament_target_dependencies(
 # message(WARNING "xarm_sdk_LIBRARIES: ${xarm_sdk_LIBRARIES}")
 # message(WARNING "xarm_api_LIBRARIES: ${xarm_api_LIBRARIES}")
 
-target_link_libraries(uf_robot_hardware 
+target_link_libraries(uf_robot_hardware
   ${xarm_api_LIBRARIES}
   ${ament_LIBRARIES}
 )
+
+if(BUILD_TESTING)
+  ament_add_gtest(test_supervised_lifecycle_contract
+    test/test_supervised_lifecycle_contract.cpp
+    src/hardware/supervised_lifecycle_contract.cpp
+  )
+  target_include_directories(
+    test_supervised_lifecycle_contract
+    PRIVATE
+    include
+    ${xarm_api_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(
+    test_supervised_lifecycle_contract
+    xarm_msgs
+  )
+
+  ament_add_gtest(test_supervised_hardware_boundary
+    test/test_supervised_hardware_boundary.cpp
+  )
+  target_link_libraries(
+    test_supervised_hardware_boundary
+    uf_robot_hardware
+  )
+  target_include_directories(
+    test_supervised_hardware_boundary
+    PRIVATE
+    include
+  )
+  ament_target_dependencies(
+    test_supervised_hardware_boundary
+    hardware_interface
+    rclcpp
+    xarm_api
+    xarm_sdk
+  )
+endif()
 
 pluginlib_export_plugin_description_file(hardware_interface uf_hardware_interface_plugins.xml)
 
@@ -109,6 +150,8 @@ ament_export_dependencies(
   hardware_interface
   pluginlib
   rclcpp
+  xarm_api
+  xarm_sdk
 )
 
 ament_package()

@@ -41,6 +41,7 @@ set(msg_files
   "msg/IOState.msg"
   "msg/CIOState.msg"
   "msg/MoveVelocity.msg"
+  "msg/SupervisedLifecycleState.msg"
 )
 
 set(srv_dir "srv")
@@ -48,6 +49,7 @@ set(srv_files
   ${srv_dir}/BioGripperCtrl.srv
   ${srv_dir}/BioGripperEnable.srv
   ${srv_dir}/Call.srv
+  ${srv_dir}/ExecuteSupervisedLifecycleCommand.srv
   ${srv_dir}/GetAnalogIO.srv
   ${srv_dir}/GetDigitalIO.srv
   ${srv_dir}/GetFloat32.srv
@@ -81,6 +83,7 @@ set(srv_files
   ${srv_dir}/VacuumGripperCtrl.srv
   ${srv_dir}/SetTcpLoad.srv
   ${srv_dir}/SetModbusTimeout.srv
+  ${srv_dir}/SetSupervisedCommandGate.srv
 
   ${srv_dir}/IdenLoad.srv
   ${srv_dir}/FtCaliLoad.srv

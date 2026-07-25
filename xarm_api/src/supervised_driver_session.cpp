@@ -49,6 +49,14 @@ std::int64_t saturating_add(
   return value + positive_delta;
 }
 
+bool command_path_state(int state)
+{
+  // xArm states 0 (ready), 1 (moving), and 2 (sleeping) remain accepted by
+  // the vendor's servo command path. States 3+ are suspended/stopped/reset
+  // states and must fence command delivery.
+  return state >= 0 && state <= 2;
+}
+
 class XArmApiSupervisedTransport final
   : public xarm_api::SupervisedDriverTransport
 {
@@ -319,6 +327,10 @@ SupervisedDriverObservation SupervisedDriverSession::observe(
     joint_write_attempt_count_.load(std::memory_order_acquire);
   result.lifecycle_command_attempt_count =
     lifecycle_command_attempt_count_.load(std::memory_order_acquire);
+  result.command_gate_open =
+    command_gate_open_.load(std::memory_order_acquire);
+  result.command_gate_valid_until_ns =
+    command_gate_valid_until_ns_.load(std::memory_order_acquire);
   if (result.source_timestamp_ns > 0) {
     result.fresh_until_ns = saturating_add(
       result.source_timestamp_ns, config_.observation_lease_ns);
@@ -439,6 +451,7 @@ bool SupervisedDriverSession::submit_joint_position_command(
 bool SupervisedDriverSession::set_command_gate(
   bool open, std::int64_t valid_until_ns)
 {
+  std::unique_lock<std::mutex> control_lock(gate_control_mutex_);
   const std::int64_t now_ns = steady_now_ns();
   const std::int64_t joint_timestamp_ns =
     joint_timestamp_ns_.load(std::memory_order_acquire);
@@ -451,6 +464,8 @@ bool SupervisedDriverSession::set_command_gate(
       observation_.identity_verified &&
       observation_.report_received &&
       observation_.position_valid &&
+      observation_.report.mode == XARM_MODE::SERVO &&
+      command_path_state(observation_.report.state) &&
       observation_.source_timestamp_ns > 0 &&
       observation_.source_timestamp_ns <= now_ns &&
       now_ns - observation_.source_timestamp_ns <
@@ -465,14 +480,21 @@ bool SupervisedDriverSession::set_command_gate(
     process_restart_required_.load(std::memory_order_acquire) ||
     close_started_.load())
   {
-    close_command_gate(true);
+    static_cast<void>(close_command_gate_locked());
+    control_lock.unlock();
+    // An explicit close is a barrier even if another fault path closed the
+    // atomic gate first. Otherwise the caller could observe a completed close
+    // while an SDK write that started before that fault is still in flight.
+    std::lock_guard<std::mutex> sdk_lock(sdk_mutex_);
+    worker_condition_.notify_one();
     return false;
   }
 
-  std::lock_guard<std::mutex> control_lock(gate_control_mutex_);
   if (close_started_.load() || !transport_->connected()) {
-    command_gate_open_.store(false, std::memory_order_release);
-    command_gate_valid_until_ns_.store(0, std::memory_order_release);
+    static_cast<void>(close_command_gate_locked());
+    control_lock.unlock();
+    std::lock_guard<std::mutex> sdk_lock(sdk_mutex_);
+    worker_condition_.notify_one();
     return false;
   }
   if (!command_gate_open_.load(std::memory_order_acquire)) {
@@ -793,6 +815,18 @@ void SupervisedDriverSession::handle_report(
     report.warning_code != 0 ||
     (report.brake_mask & expected_mask) != expected_mask ||
     (report.servo_enable_mask & expected_mask) != expected_mask;
+  const bool command_path_untrusted =
+    controller_pose_untrusted ||
+    report.mode != XARM_MODE::SERVO ||
+    !command_path_state(report.state);
+  std::unique_lock<std::mutex> gate_lock(
+    gate_control_mutex_, std::defer_lock);
+  if (command_path_untrusted) {
+    // Serialize the unsafe observation and gate closure with any concurrent
+    // open request. This prevents an opener from validating the old report
+    // after this callback has already decided the new report is unsafe.
+    gate_lock.lock();
+  }
   {
     std::lock_guard<std::mutex> lock(observation_mutex_);
     const bool position_changed =
@@ -821,8 +855,10 @@ void SupervisedDriverSession::handle_report(
       observation_.generation = next_observation_generation_++;
     }
   }
-  if (controller_pose_untrusted) {
-    close_command_gate(false);
+  if (command_path_untrusted) {
+    static_cast<void>(close_command_gate_locked());
+    gate_lock.unlock();
+    worker_condition_.notify_one();
   }
 }
 
@@ -837,8 +873,14 @@ void SupervisedDriverSession::handle_connection(
   if (unexpected_transport_loss) {
     process_restart_required_.store(true, std::memory_order_release);
   }
+  std::unique_lock<std::mutex> gate_lock(
+    gate_control_mutex_, std::defer_lock);
   if (observation_lost) {
-    close_command_gate(false);
+    // Publish loss and close delivery under the same gate lock so a
+    // concurrent opener cannot validate the previous connected observation
+    // after this loss has been handled.
+    gate_lock.lock();
+    static_cast<void>(close_command_gate_locked());
     position_initialized_.store(false, std::memory_order_release);
     position_initialization_match_count_.store(
       0, std::memory_order_release);
@@ -866,6 +908,10 @@ void SupervisedDriverSession::handle_connection(
   if (changed) {
     observation_.generation = next_observation_generation_++;
   }
+  if (gate_lock.owns_lock()) {
+    gate_lock.unlock();
+    worker_condition_.notify_one();
+  }
 }
 
 void SupervisedDriverSession::set_position_valid(
@@ -890,22 +936,28 @@ void SupervisedDriverSession::set_last_joint_write_return(int return_code)
   }
 }
 
+bool SupervisedDriverSession::close_command_gate_locked() noexcept
+{
+  const bool was_open = command_gate_open_.exchange(
+    false, std::memory_order_acq_rel);
+  command_gate_valid_until_ns_.store(0, std::memory_order_release);
+  if (was_open) {
+    command_gate_version_.fetch_add(1, std::memory_order_acq_rel);
+  }
+  consumed_command_sequence_.store(
+    command_sequence_.load(std::memory_order_acquire),
+    std::memory_order_release);
+  return was_open;
+}
+
 bool SupervisedDriverSession::close_command_gate(bool synchronize_sdk)
 {
   bool was_open = false;
   {
     std::lock_guard<std::mutex> control_lock(gate_control_mutex_);
-    was_open = command_gate_open_.exchange(
-      false, std::memory_order_acq_rel);
-    command_gate_valid_until_ns_.store(0, std::memory_order_release);
-    if (was_open) {
-      command_gate_version_.fetch_add(1, std::memory_order_acq_rel);
-    }
-    consumed_command_sequence_.store(
-      command_sequence_.load(std::memory_order_acquire),
-      std::memory_order_release);
+    was_open = close_command_gate_locked();
   }
-  if (was_open && synchronize_sdk) {
+  if (synchronize_sdk) {
     std::lock_guard<std::mutex> sdk_lock(sdk_mutex_);
   }
   worker_condition_.notify_one();

@@ -1,0 +1,12 @@
+# Open or close delivery of JTC position commands inside the sole SDK owner.
+# An open request carries a bounded relative lease; the owner computes its own
+# steady-clock deadline.
+string request_id
+uint64 expected_generation
+bool open
+int64 lease_duration_ns
+---
+bool accepted
+string reason
+uint64 observed_generation
+int64 valid_until_steady_time_ns

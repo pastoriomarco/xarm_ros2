@@ -63,6 +63,7 @@ include_directories(
 set(dependencies "rclcpp" "rclcpp_action" "std_msgs" "sensor_msgs" "control_msgs" "geometry_msgs" "xarm_msgs")
 
 add_library(xarm_ros_driver SHARED
+  src/supervised_driver.cpp
   src/supervised_driver_session.cpp
   src/xarm_driver.cpp
   src/xarm_driver_service.cpp

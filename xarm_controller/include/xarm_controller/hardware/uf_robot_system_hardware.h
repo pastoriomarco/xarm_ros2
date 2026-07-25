@@ -9,10 +9,17 @@
 #ifndef __UF_ROBOT_SYSTEM_HARDWARE_INTERFACE_H__
 #define __UF_ROBOT_SYSTEM_HARDWARE_INTERFACE_H__
 
-#include <vector>
+#include <array>
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
 #include <thread>
-#include <queue>
+#include <vector>
+
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/empty.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
@@ -26,7 +33,12 @@
 // #include "hardware_interface/visibility_control.h"
 #include "controller_manager_msgs/srv/list_controllers.hpp"
 #include "controller_manager_msgs/srv/switch_controller.hpp"
+#include "xarm_api/supervised_driver.h"
 #include "xarm_api/xarm_driver.h"
+#include "xarm_controller/hardware/supervised_lifecycle_contract.h"
+#include "xarm_msgs/msg/supervised_lifecycle_state.hpp"
+#include "xarm_msgs/srv/execute_supervised_lifecycle_command.hpp"
+#include "xarm_msgs/srv/set_supervised_command_gate.hpp"
 
 
 namespace uf_robot_hardware
@@ -38,7 +50,12 @@ namespace uf_robot_hardware
     public:
         RCLCPP_SHARED_PTR_DEFINITIONS(UFRobotSystemHardware)
 
+        ~UFRobotSystemHardware() override;
         CallbackReturn on_init(const hardware_interface::HardwareComponentInterfaceParams& params) final;
+        CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) final;
+        CallbackReturn on_cleanup(const rclcpp_lifecycle::State& previous_state) final;
+        CallbackReturn on_shutdown(const rclcpp_lifecycle::State& previous_state) final;
+        CallbackReturn on_error(const rclcpp_lifecycle::State& previous_state) final;
         std::vector<hardware_interface::StateInterface> export_state_interfaces() final;
 
         std::vector<hardware_interface::CommandInterface> export_command_interfaces() final;
@@ -116,11 +133,52 @@ namespace uf_robot_hardware
         void _deactivate_controller(void);
         void _activate_controller(void);
 
-        void _init_ufactory_driver(void);
+        bool _init_ufactory_driver(void);
+        bool _configure_supervised_driver(void);
+        void _release_supervised_driver(void) noexcept;
+        void _init_supervised_ros_boundary(void);
+        void _stop_supervised_ros_boundary(void) noexcept;
+        void _publish_supervised_state(void);
+        void _execute_supervised_command(
+            const std::shared_ptr<xarm_msgs::srv::ExecuteSupervisedLifecycleCommand::Request> request,
+            std::shared_ptr<xarm_msgs::srv::ExecuteSupervisedLifecycleCommand::Response> response);
+        void _set_supervised_command_gate(
+            const std::shared_ptr<xarm_msgs::srv::SetSupervisedCommandGate::Request> request,
+            std::shared_ptr<xarm_msgs::srv::SetSupervisedCommandGate::Response> response);
+        static std::int64_t _steady_now_ns(void);
+        static std::string _new_supervised_session_id(const std::string& owner_id);
 
         template<typename ServiceT, typename SharedRequest = typename ServiceT::Request::SharedPtr, typename SharedResponse = typename ServiceT::Response::SharedPtr>
         int _call_request(std::shared_ptr<ServiceT> client, SharedRequest req, SharedResponse& res);
 
+        bool supervised_lifecycle_ = false;
+        std::string supervised_owner_id_;
+        std::string supervised_session_id_;
+        std::string supervised_report_type_ = "rich";
+        int supervised_expected_device_type_ = -1;
+        std::int64_t supervised_observation_lease_ns_ = 250000000;
+        std::int64_t supervised_joint_state_lease_ns_ = 100000000;
+        std::int64_t supervised_io_period_ns_ = 5000000;
+        std::int64_t supervised_max_gate_lease_ns_ = 250000000;
+        double supervised_source_agreement_tolerance_rad_ = 0.002;
+        std::size_t supervised_position_initialization_samples_ = 3;
+        std::unique_ptr<xarm_api::SupervisedDriver> supervised_driver_;
+        std::atomic<xarm_api::SupervisedDriver*> supervised_rt_driver_{nullptr};
+        std::mutex supervised_nrt_mutex_;
+        std::atomic<bool> supervised_hardware_active_{false};
+        SupervisedCommandReplayCache supervised_replay_{64};
+        rclcpp::executors::SingleThreadedExecutor::SharedPtr supervised_executor_;
+        std::thread supervised_executor_thread_;
+        rclcpp::Publisher<
+            xarm_msgs::msg::SupervisedLifecycleState>::SharedPtr
+            supervised_state_publisher_;
+        rclcpp::Service<
+            xarm_msgs::srv::ExecuteSupervisedLifecycleCommand>::SharedPtr
+            supervised_command_service_;
+        rclcpp::Service<
+            xarm_msgs::srv::SetSupervisedCommandGate>::SharedPtr
+            supervised_gate_service_;
+        rclcpp::TimerBase::SharedPtr supervised_state_timer_;
     };
 }
 

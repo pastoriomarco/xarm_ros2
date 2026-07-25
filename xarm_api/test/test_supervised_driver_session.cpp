@@ -34,6 +34,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <future>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -672,6 +673,112 @@ TEST(SupervisedDriverSession, InvalidOrExpiredCommandsNeverReachSdk)
   EXPECT_FALSE(rig.session->submit_joint_position_command(command, 6));
   rig.session->service_io_once();
   EXPECT_EQ(0, rig.state->joint_write_calls);
+}
+
+TEST(SupervisedDriverSession, CommandGateRequiresCommandCapableServoState)
+{
+  auto rig = make_rig();
+  initialize_powered_pose(rig);
+  xarm_api::SupervisedDriverReport report;
+  report.state = 4;
+  report.mode = 1;
+  report.brake_mask = 63;
+  report.servo_enable_mask = 63;
+  report.error_code = 0;
+  report.warning_code = 0;
+  for (std::size_t index = 0; index < 6; ++index) {
+    report.joint_positions[index] = rig.state->joint_positions[index];
+  }
+
+  rig.transport->emit_report(report);
+  EXPECT_TRUE(rig.session->observe(0).position_valid);
+  EXPECT_FALSE(rig.session->set_command_gate(true, future_deadline()));
+
+  report.state = 0;
+  report.mode = 0;
+  rig.transport->emit_report(report);
+  EXPECT_TRUE(rig.session->observe(0).position_valid);
+  EXPECT_FALSE(rig.session->set_command_gate(true, future_deadline()));
+
+  report.state = 1;
+  report.mode = 1;
+  rig.transport->emit_report(report);
+  EXPECT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+
+  report.state = 3;
+  rig.transport->emit_report(report);
+  std::array<double, xarm_api::kSupervisedDriverMaximumJoints>
+  command{{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0}};
+  EXPECT_FALSE(rig.session->submit_joint_position_command(command, 6));
+}
+
+TEST(
+  SupervisedDriverSession,
+  ExplicitCloseWaitsForInflightSdkIoAfterAsynchronousFaultClosure)
+{
+  auto rig = make_rig();
+  initialize_powered_pose(rig);
+  ASSERT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+  {
+    std::lock_guard<std::mutex> lock(rig.state->joint_read_mutex);
+    rig.state->block_joint_read = true;
+    rig.state->joint_read_entered = false;
+    rig.state->release_joint_read = false;
+  }
+  std::thread service_thread(
+    [&rig]() {rig.session->service_io_once();});
+  bool read_entered = false;
+  {
+    std::unique_lock<std::mutex> lock(rig.state->joint_read_mutex);
+    read_entered = rig.state->joint_read_condition.wait_for(
+      lock, std::chrono::seconds(1),
+      [&rig]() {return rig.state->joint_read_entered;});
+  }
+  if (!read_entered) {
+    {
+      std::lock_guard<std::mutex> lock(rig.state->joint_read_mutex);
+      rig.state->release_joint_read = true;
+    }
+    rig.state->joint_read_condition.notify_all();
+    service_thread.join();
+    FAIL() << "fake SDK read did not start";
+  }
+
+  xarm_api::SupervisedDriverReport unsafe_report;
+  unsafe_report.state = 3;
+  unsafe_report.mode = 1;
+  unsafe_report.brake_mask = 63;
+  unsafe_report.servo_enable_mask = 63;
+  unsafe_report.error_code = 0;
+  unsafe_report.warning_code = 0;
+  for (std::size_t index = 0; index < 6; ++index) {
+    unsafe_report.joint_positions[index] =
+      rig.state->joint_positions[index];
+  }
+  rig.transport->emit_report(unsafe_report);
+  ASSERT_FALSE(rig.session->observe(0).command_gate_open);
+
+  std::promise<void> close_completed;
+  auto close_completion = close_completed.get_future();
+  std::thread close_thread(
+    [&rig, &close_completed]() {
+      static_cast<void>(rig.session->set_command_gate(false, 0));
+      close_completed.set_value();
+    });
+  EXPECT_EQ(
+    std::future_status::timeout,
+    close_completion.wait_for(std::chrono::milliseconds(50)));
+
+  {
+    std::lock_guard<std::mutex> lock(rig.state->joint_read_mutex);
+    rig.state->release_joint_read = true;
+  }
+  rig.state->joint_read_condition.notify_all();
+  service_thread.join();
+  EXPECT_EQ(
+    std::future_status::ready,
+    close_completion.wait_for(std::chrono::seconds(1)));
+  close_thread.join();
 }
 
 TEST(SupervisedDriverSession, StaleRichReportCannotOpenCommandGate)

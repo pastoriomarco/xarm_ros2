@@ -29,82 +29,21 @@
 #ifndef XARM_API__SUPERVISED_DRIVER_SESSION_H_
 #define XARM_API__SUPERVISED_DRIVER_SESSION_H_
 
-#include <array>
 #include <atomic>
 #include <condition_variable>
-#include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <string>
 #include <thread>
 
-#include "xarm_api/driver_lifecycle.h"
+#include "xarm_api/supervised_driver.h"
 
 // Keep the package's cpplint namespace convention despite its legacy
 // uncrustify profile requesting the opposite indentation.
 // *INDENT-OFF*
 namespace xarm_api
 {
-constexpr std::size_t kSupervisedDriverMaximumJoints = 7;
-
-struct SupervisedDriverReport
-{
-  int state = -1;
-  int mode = -1;
-  int command_count = -1;
-  int brake_mask = -1;
-  int servo_enable_mask = -1;
-  int error_code = -1;
-  int warning_code = -1;
-  std::array<double, kSupervisedDriverMaximumJoints>
-  joint_positions{{0.0}};
-};
-
-struct SupervisedDriverObservation
-{
-  std::uint64_t generation = 0;
-  std::int64_t source_timestamp_ns = 0;
-  std::int64_t fresh_until_ns = 0;
-  bool connected = false;
-  bool report_connected = false;
-  bool identity_verified = false;
-  bool process_restart_required = false;
-  bool report_received = false;
-  bool position_valid = false;
-  std::uint64_t report_sample_count = 0;
-  std::uint64_t joint_read_attempt_count = 0;
-  std::uint64_t joint_read_success_count = 0;
-  std::uint64_t joint_write_attempt_count = 0;
-  std::uint64_t lifecycle_command_attempt_count = 0;
-  DriverRobotIdentity identity;
-  SupervisedDriverReport report;
-  int last_joint_read_return_code = -1;
-  int last_joint_write_return_code = 0;
-};
-
-struct SupervisedDriverJointState
-{
-  std::uint64_t generation = 0;
-  std::int64_t source_timestamp_ns = 0;
-  std::size_t joint_count = 0;
-  std::array<double, kSupervisedDriverMaximumJoints> positions{{0.0}};
-  std::array<double, kSupervisedDriverMaximumJoints> velocities{{0.0}};
-};
-
-struct SupervisedDriverSessionConfig
-{
-  std::string robot_address;
-  std::string report_type = "rich";
-  std::size_t joint_count = 0;
-  DriverIdentityExpectation identity_expectation;
-  std::int64_t observation_lease_ns = 250000000;
-  std::int64_t joint_state_lease_ns = 100000000;
-  std::int64_t io_period_ns = 5000000;
-  double source_agreement_tolerance_rad = 0.002;
-  std::size_t position_initialization_samples = 3;
-};
+using SupervisedDriverSessionConfig = SupervisedDriverConfig;
 
 class SupervisedDriverTransport : public DriverLifecycleTransport
 {
@@ -183,6 +122,7 @@ private:
   void handle_connection(bool connected, bool report_connected);
   void set_position_valid(bool valid, int return_code);
   void set_last_joint_write_return(int return_code);
+  bool close_command_gate_locked() noexcept;
   bool close_command_gate(bool synchronize_sdk);
   void run_io_worker();
 

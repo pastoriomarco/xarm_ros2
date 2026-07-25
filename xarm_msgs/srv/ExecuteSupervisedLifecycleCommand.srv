@@ -1,0 +1,19 @@
+# Exactly one restricted xArm primitive. Raw SDK mode/state/system-control
+# integers are intentionally not exposed.
+uint8 CLEAR_ERROR=1
+uint8 CLEAR_WARNING=2
+uint8 ENABLE_MOTION=3
+uint8 DISABLE_MOTION=4
+uint8 SELECT_JOINT_SERVO_MODE=5
+uint8 SET_READY_STATE=6
+uint8 SET_STOPPED_STATE=7
+
+uint8 command
+string request_id
+uint64 expected_generation
+---
+bool permitted
+bool attempted
+int32 return_code
+string reason
+uint64 observed_generation
