@@ -33,12 +33,14 @@
 // #include "hardware_interface/visibility_control.h"
 #include "controller_manager_msgs/srv/list_controllers.hpp"
 #include "controller_manager_msgs/srv/switch_controller.hpp"
+#include "controller_manager_msgs/msg/controller_manager_activity.hpp"
 #include "xarm_api/supervised_driver.h"
 #include "xarm_api/xarm_driver.h"
 #include "xarm_controller/hardware/supervised_lifecycle_contract.h"
 #include "xarm_msgs/msg/supervised_lifecycle_state.hpp"
 #include "xarm_msgs/srv/execute_supervised_lifecycle_command.hpp"
 #include "xarm_msgs/srv/set_supervised_command_gate.hpp"
+#include "xarm_msgs/srv/shutdown_supervised_controller.hpp"
 
 
 namespace uf_robot_hardware
@@ -145,6 +147,9 @@ namespace uf_robot_hardware
         void _set_supervised_command_gate(
             const std::shared_ptr<xarm_msgs::srv::SetSupervisedCommandGate::Request> request,
             std::shared_ptr<xarm_msgs::srv::SetSupervisedCommandGate::Response> response);
+        void _shutdown_supervised_controller(
+            const std::shared_ptr<xarm_msgs::srv::ShutdownSupervisedController::Request> request,
+            std::shared_ptr<xarm_msgs::srv::ShutdownSupervisedController::Response> response);
         static std::int64_t _steady_now_ns(void);
         static std::string _new_supervised_session_id(const std::string& owner_id);
 
@@ -161,13 +166,20 @@ namespace uf_robot_hardware
         std::int64_t supervised_io_period_ns_ = 5000000;
         std::int64_t supervised_transport_loss_timeout_ns_ = 2000000000;
         std::int64_t supervised_max_gate_lease_ns_ = 250000000;
+        std::int64_t supervised_shutdown_stationary_dwell_ns_ = 1000000000;
         double supervised_source_agreement_tolerance_rad_ = 0.002;
+        double supervised_shutdown_stationary_tolerance_rad_ = 0.001;
         std::size_t supervised_position_initialization_samples_ = 3;
+        std::string supervised_controller_activity_topic_;
+        std::string supervised_trajectory_controller_name_;
         std::unique_ptr<xarm_api::SupervisedDriver> supervised_driver_;
         std::atomic<xarm_api::SupervisedDriver*> supervised_rt_driver_{nullptr};
         std::mutex supervised_nrt_mutex_;
         std::atomic<bool> supervised_hardware_active_{false};
         SupervisedCommandReplayCache supervised_replay_{64};
+        SupervisedCommandReplayCache supervised_shutdown_replay_{16};
+        bool supervised_controller_activity_known_ = false;
+        bool supervised_trajectory_controller_active_ = false;
         rclcpp::executors::SingleThreadedExecutor::SharedPtr supervised_executor_;
         std::thread supervised_executor_thread_;
         rclcpp::Publisher<
@@ -179,6 +191,12 @@ namespace uf_robot_hardware
         rclcpp::Service<
             xarm_msgs::srv::SetSupervisedCommandGate>::SharedPtr
             supervised_gate_service_;
+        rclcpp::Service<
+            xarm_msgs::srv::ShutdownSupervisedController>::SharedPtr
+            supervised_shutdown_service_;
+        rclcpp::Subscription<
+            controller_manager_msgs::msg::ControllerManagerActivity>::SharedPtr
+            supervised_controller_activity_subscription_;
         rclcpp::TimerBase::SharedPtr supervised_state_timer_;
     };
 }

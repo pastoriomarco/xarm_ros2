@@ -61,6 +61,7 @@ struct FakeTransportState
   int set_motion_enabled_result = 0;
   int set_mode_result = 0;
   int set_state_result = 0;
+  int shutdown_controller_result = 0;
   xarm_api::DriverRobotIdentity identity{6, 9};
   std::array<int, xarm_api::kDriverErrorWarningWords> error_warning{{0, 0}};
   std::array<int, xarm_api::kDriverServoDebugWords> servo_debug{{0}};
@@ -81,6 +82,7 @@ struct FakeTransportState
   int set_motion_enabled_calls = 0;
   int set_mode_calls = 0;
   int set_state_calls = 0;
+  int shutdown_controller_calls = 0;
   int release_callbacks_calls = 0;
   int disconnect_calls = 0;
   bool block_joint_read = false;
@@ -254,6 +256,13 @@ public:
     state_->events.push_back("write_joint_position");
     state_->last_joint_command = positions;
     return state_->joint_write_result;
+  }
+
+  int shutdown_controller() override
+  {
+    ++state_->shutdown_controller_calls;
+    state_->events.push_back("shutdown_controller");
+    return state_->shutdown_controller_result;
   }
 
   void emit_report(const xarm_api::SupervisedDriverReport & report)
@@ -964,6 +973,70 @@ TEST(SupervisedDriverSession, IdentityMismatchFailsClosedAndCleansTransport)
   EXPECT_EQ(0, state->joint_write_calls);
   EXPECT_EQ(1, state->release_callbacks_calls);
   EXPECT_EQ(1, state->disconnect_calls);
+}
+
+TEST(SupervisedDriverSession, FailedConnectCleansTransportExactlyOnce)
+{
+  auto state = std::make_shared<FakeTransportState>();
+  state->connect_result = -1;
+  std::unique_ptr<FakeSupervisedTransport> transport(
+    new FakeSupervisedTransport(state));
+
+  EXPECT_THROW(
+    xarm_api::SupervisedDriverSession(
+      make_config(), std::move(transport), false),
+    std::runtime_error);
+
+  EXPECT_EQ(1, state->connect_calls);
+  EXPECT_EQ(0, state->identity_read_calls);
+  EXPECT_EQ(1, state->release_callbacks_calls);
+  EXPECT_EQ(1, state->disconnect_calls);
+  EXPECT_EQ(0, state->shutdown_controller_calls);
+}
+
+TEST(
+  SupervisedDriverSession,
+  ControllerShutdownAttemptsExactlyOnceAndFencesSession)
+{
+  auto config = make_config();
+  config.shutdown_stationary_dwell_ns = 1;
+  auto rig = make_rig(std::move(config));
+  initialize_powered_pose(rig);
+
+  xarm_api::SupervisedDriverReport disabled_report;
+  disabled_report.state = 4;
+  disabled_report.mode = 1;
+  disabled_report.brake_mask = 0;
+  disabled_report.servo_enable_mask = 0;
+  disabled_report.error_code = 2;
+  disabled_report.warning_code = 0;
+  for (std::size_t index = 0; index < 6; ++index) {
+    disabled_report.joint_positions[index] =
+      rig.state->joint_positions[index];
+  }
+  rig.transport->emit_report(disabled_report);
+  rig.session->service_io_once();
+  rig.session->service_io_once();
+  const auto before = rig.session->observe(0);
+  ASSERT_TRUE(before.position_ever_initialized);
+  ASSERT_TRUE(before.stationary);
+
+  const auto result = rig.session->shutdown_controller();
+  EXPECT_TRUE(result.permitted);
+  EXPECT_TRUE(result.attempted);
+  EXPECT_EQ(0, result.return_code);
+  EXPECT_STREQ(result.reason, "controller_shutdown_vendor_accepted");
+  EXPECT_TRUE(result.process_restart_required);
+  EXPECT_EQ(1, rig.state->shutdown_controller_calls);
+  EXPECT_EQ(
+    1U,
+    rig.session->observe(0).shutdown_controller_attempt_count);
+  EXPECT_TRUE(rig.session->observe(0).process_restart_required);
+
+  const auto repeated = rig.session->shutdown_controller();
+  EXPECT_FALSE(repeated.permitted);
+  EXPECT_FALSE(repeated.attempted);
+  EXPECT_EQ(1, rig.state->shutdown_controller_calls);
 }
 
 TEST(SupervisedDriverSession, CloseFencesLifecycleWaitingOnSdk)

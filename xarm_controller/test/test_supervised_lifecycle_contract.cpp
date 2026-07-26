@@ -39,6 +39,7 @@ namespace
 {
 using uf_robot_hardware::SupervisedCommandRecord;
 using uf_robot_hardware::SupervisedCommandReplayCache;
+using uf_robot_hardware::SupervisedControllerShutdownFacts;
 using uf_robot_hardware::SupervisedReadDisposition;
 using uf_robot_hardware::SupervisedReplayDisposition;
 using uf_robot_hardware::SupervisedWriteDisposition;
@@ -163,6 +164,72 @@ TEST(SupervisedLifecycleContract, RequestIdsAreBoundedPrintableTokens)
   EXPECT_FALSE(
     uf_robot_hardware::valid_supervised_request_id(
       std::string("line\nbreak")));
+}
+
+TEST(
+  SupervisedLifecycleContract,
+  ControllerShutdownRequiresEveryIndependentInterlock)
+{
+  SupervisedControllerShutdownFacts facts;
+  facts.transport_connected = true;
+  facts.report_connected = true;
+  facts.identity_verified = true;
+  facts.controller_activity_known = true;
+  facts.position_ever_initialized = true;
+  facts.stationary = true;
+  facts.state = 4;
+  facts.mode = 1;
+  facts.brake_mask = 0;
+  facts.servo_enable_mask = 0;
+  facts.error_code = 0;
+  facts.warning_code = 0;
+  EXPECT_EQ(
+    uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+    nullptr);
+
+  facts.trajectory_controller_active = true;
+  EXPECT_STREQ(
+    uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+    "trajectory_controller_active");
+  facts.trajectory_controller_active = false;
+  facts.command_gate_open = true;
+  EXPECT_STREQ(
+    uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+    "command_gate_open");
+  facts.command_gate_open = false;
+  facts.stationary = false;
+  EXPECT_STREQ(
+    uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+    "stationary_dwell_not_satisfied");
+  facts.stationary = true;
+  facts.error_code = 10;
+  EXPECT_STREQ(
+    uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+    "ineligible_fault_present");
+}
+
+TEST(
+  SupervisedLifecycleContract,
+  ControllerShutdownAllowsOnlyDocumentedEmergencyStopFaults)
+{
+  SupervisedControllerShutdownFacts facts;
+  facts.transport_connected = true;
+  facts.report_connected = true;
+  facts.identity_verified = true;
+  facts.controller_activity_known = true;
+  facts.position_ever_initialized = true;
+  facts.stationary = true;
+  facts.state = 4;
+  facts.mode = 1;
+  facts.brake_mask = 0;
+  facts.servo_enable_mask = 0;
+  facts.warning_code = 0;
+  for (const int error_code : {0, 1, 2, 3}) {
+    facts.error_code = error_code;
+    EXPECT_EQ(
+      uf_robot_hardware::supervised_controller_shutdown_rejection(facts),
+      nullptr);
+  }
 }
 
 TEST(SupervisedLifecycleContract, ExactDuplicateReplaysWithoutReattempt)

@@ -63,6 +63,7 @@ public:
   virtual int write_joint_position_command(
     const std::array<float, kSupervisedDriverMaximumJoints> & positions,
     std::size_t joint_count) = 0;
+  virtual int shutdown_controller() = 0;
 };
 
 /// One command-suppressed SDK transport with an NRT I/O worker.
@@ -107,6 +108,7 @@ public:
   /// progress before it returns.
   [[nodiscard]] bool set_command_gate(
     bool open, std::int64_t valid_until_ns);
+  SupervisedControllerShutdownResult shutdown_controller();
 
   /// Perform one SDK poll/latest-command cycle on the calling NRT thread.
   ///
@@ -127,6 +129,11 @@ private:
   void require_process_restart(bool control_lost, bool report_lost);
   void set_position_valid(bool valid, int return_code);
   void set_last_joint_write_return(int return_code);
+  void update_shutdown_stationarity(
+    const std::array<float, kSupervisedDriverMaximumJoints> & positions,
+    std::int64_t sample_time_ns,
+    bool source_agreement);
+  void clear_shutdown_stationarity();
   bool close_command_gate_locked() noexcept;
   bool close_command_gate(bool synchronize_sdk);
   void run_io_worker();
@@ -156,6 +163,11 @@ private:
   std::atomic<bool> process_restart_required_{false};
   std::atomic<std::uint64_t> joint_write_attempt_count_{0};
   std::atomic<std::uint64_t> lifecycle_command_attempt_count_{0};
+  std::atomic<std::uint64_t> shutdown_controller_attempt_count_{0};
+  bool position_ever_initialized_ = false;
+  bool stationary_reference_valid_ = false;
+  std::array<double, kSupervisedDriverMaximumJoints>
+  stationary_reference_positions_{{0.0}};
 
   std::array<std::atomic<double>, kSupervisedDriverMaximumJoints>
   command_positions_;

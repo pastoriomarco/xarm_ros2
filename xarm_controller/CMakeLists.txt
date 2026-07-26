@@ -44,6 +44,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
 find_package(xarm_msgs REQUIRED)
 find_package(xarm_api REQUIRED)
 find_package(xarm_sdk REQUIRED)
@@ -74,6 +75,7 @@ ament_target_dependencies(
   std_msgs
   sensor_msgs
   controller_manager_msgs
+  lifecycle_msgs
   xarm_msgs
   xarm_api
   xarm_sdk

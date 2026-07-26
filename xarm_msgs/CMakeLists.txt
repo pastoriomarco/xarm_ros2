@@ -84,6 +84,7 @@ set(srv_files
   ${srv_dir}/SetTcpLoad.srv
   ${srv_dir}/SetModbusTimeout.srv
   ${srv_dir}/SetSupervisedCommandGate.srv
+  ${srv_dir}/ShutdownSupervisedController.srv
 
   ${srv_dir}/IdenLoad.srv
   ${srv_dir}/FtCaliLoad.srv

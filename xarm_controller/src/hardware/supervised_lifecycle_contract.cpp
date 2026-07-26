@@ -145,6 +145,59 @@ bool supervised_initial_activation_state(int state)
   return state == kReadyFeedbackState;
 }
 
+const char * supervised_controller_shutdown_rejection(
+  const SupervisedControllerShutdownFacts & facts)
+{
+  if (!facts.transport_connected || !facts.report_connected) {
+    return "transport_not_connected";
+  }
+  if (!facts.identity_verified) {
+    return "identity_not_verified";
+  }
+  if (facts.process_restart_required) {
+    return "process_restart_required";
+  }
+  if (facts.command_gate_open) {
+    return "command_gate_open";
+  }
+  if (facts.hardware_component_active) {
+    return "hardware_component_active";
+  }
+  if (!facts.controller_activity_known) {
+    return "controller_activity_unknown";
+  }
+  if (facts.trajectory_controller_active) {
+    return "trajectory_controller_active";
+  }
+  if (!facts.position_ever_initialized) {
+    return "position_never_initialized";
+  }
+  if (!facts.stationary) {
+    return "stationary_dwell_not_satisfied";
+  }
+  if (facts.state != kStoppedState) {
+    return "robot_not_stopped";
+  }
+  if (facts.mode != kJointServoMode) {
+    return "unexpected_control_mode";
+  }
+  if (facts.brake_mask != 0 || facts.servo_enable_mask != 0) {
+    return "drives_not_disabled";
+  }
+  if (facts.warning_code != 0) {
+    return "warning_present";
+  }
+  if (
+    facts.error_code != 0 &&
+    facts.error_code != 1 &&
+    facts.error_code != 2 &&
+    facts.error_code != 3)
+  {
+    return "ineligible_fault_present";
+  }
+  return nullptr;
+}
+
 bool map_supervised_command(
   std::uint8_t command,
   xarm_api::DriverLifecycleCommand & primitive)

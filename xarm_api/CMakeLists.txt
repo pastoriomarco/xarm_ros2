@@ -92,6 +92,23 @@ if(BUILD_TESTING)
     xarm_ros_driver
     ${ament_LIBRARIES}
   )
+  ament_add_gtest(test_driver_supervised_actual_failed_connect
+    test/test_supervised_driver_actual_failed_connect.cpp
+  )
+  target_include_directories(
+    test_driver_supervised_actual_failed_connect PRIVATE include
+  )
+  target_link_libraries(
+    test_driver_supervised_actual_failed_connect
+    xarm_ros_driver
+    ${ament_LIBRARIES}
+  )
+  set_tests_properties(
+    test_driver_supervised_actual_failed_connect
+    PROPERTIES
+      LABELS "actual_sdk"
+      TIMEOUT 15
+  )
 endif()
 
 add_executable(xarm_driver_node

@@ -68,6 +68,9 @@ struct SupervisedDriverObservation
   bool process_restart_required = false;
   bool report_received = false;
   bool position_valid = false;
+  bool position_ever_initialized = false;
+  bool stationary = false;
+  std::int64_t stationary_since_ns = 0;
   bool command_gate_open = false;
   std::int64_t command_gate_valid_until_ns = 0;
   std::uint64_t report_sample_count = 0;
@@ -75,6 +78,7 @@ struct SupervisedDriverObservation
   std::uint64_t joint_read_success_count = 0;
   std::uint64_t joint_write_attempt_count = 0;
   std::uint64_t lifecycle_command_attempt_count = 0;
+  std::uint64_t shutdown_controller_attempt_count = 0;
   DriverRobotIdentity identity;
   SupervisedDriverReport report;
   int last_joint_read_return_code = -1;
@@ -102,6 +106,17 @@ struct SupervisedDriverConfig
   std::int64_t transport_loss_timeout_ns = 2000000000;
   double source_agreement_tolerance_rad = 0.002;
   std::size_t position_initialization_samples = 3;
+  double shutdown_stationary_tolerance_rad = 0.001;
+  std::int64_t shutdown_stationary_dwell_ns = 1000000000;
+};
+
+struct SupervisedControllerShutdownResult
+{
+  bool permitted = false;
+  bool attempted = false;
+  int return_code = -1;
+  const char * reason = "not_evaluated";
+  bool process_restart_required = false;
 };
 
 /// Installed xarm_ros2 façade for the private supervised SDK session.
@@ -132,6 +147,12 @@ public:
     std::size_t joint_count) noexcept;
   [[nodiscard]] bool set_command_gate(
     bool open, std::int64_t valid_until_ns);
+  /// Request the fixed physical-controller shutdown operation.
+  ///
+  /// The xarm_ros2 owner must enforce the higher-level ROS preconditions
+  /// before calling this method. Any attempted call terminally fences this
+  /// session and requires a fresh owner process.
+  SupervisedControllerShutdownResult shutdown_controller();
   void close() noexcept;
 
 private:

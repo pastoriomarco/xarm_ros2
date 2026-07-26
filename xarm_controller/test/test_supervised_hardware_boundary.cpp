@@ -70,6 +70,10 @@ hardware_interface::HardwareComponentInterfaceParams parameters()
     {"velocity_control", "false"},
     {"add_gripper", "false"},
     {"add_bio_gripper", "false"},
+    {"controller_manager_activity_topic", "/controller_manager/activity"},
+    {"trajectory_controller_name", "lite6_traj_controller"},
+    {"shutdown_stationary_tolerance_rad", "0.001"},
+    {"shutdown_stationary_dwell_ms", "1000"},
   };
   for (int index = 1; index <= 6; ++index) {
     hardware_interface::ComponentInfo joint;

@@ -19,6 +19,8 @@
 #include <sstream>
 #include <utility>
 
+#include <lifecycle_msgs/msg/state.hpp>
+
 #define SERVICE_CALL_FAILED 999
 #define SERVICE_IS_PERSISTENT_BUT_INVALID 998
 #define ROBOT_IS_DISCONNECTED -1
@@ -308,7 +310,10 @@ namespace uf_robot_hardware
                     target = milliseconds * NANOS_PER_MILLISECOND;
                     return true;
                 };
-            if (!parse_milliseconds(
+            if (info_.hardware_parameters.find(
+                    "shutdown_stationary_dwell_ms") ==
+                    info_.hardware_parameters.end() ||
+                !parse_milliseconds(
                     "observation_lease_ms",
                     supervised_observation_lease_ns_) ||
                 !parse_milliseconds(
@@ -322,7 +327,10 @@ namespace uf_robot_hardware
                     supervised_transport_loss_timeout_ns_) ||
                 !parse_milliseconds(
                     "command_gate_max_lease_ms",
-                    supervised_max_gate_lease_ns_))
+                    supervised_max_gate_lease_ns_) ||
+                !parse_milliseconds(
+                    "shutdown_stationary_dwell_ms",
+                    supervised_shutdown_stationary_dwell_ns_))
             {
                 RCLCPP_ERROR(
                     LOGGER,
@@ -342,6 +350,18 @@ namespace uf_robot_hardware
                 return false;
             }
             it = info_.hardware_parameters.find(
+                "shutdown_stationary_tolerance_rad");
+            if (it == info_.hardware_parameters.end() ||
+                !parse_positive_double(
+                    it->second,
+                    supervised_shutdown_stationary_tolerance_rad_))
+            {
+                RCLCPP_ERROR(
+                    LOGGER,
+                    "Supervised shutdown stationary tolerance is invalid");
+                return false;
+            }
+            it = info_.hardware_parameters.find(
                 "position_initialization_samples");
             if (it != info_.hardware_parameters.end() &&
                 !parse_positive_size(
@@ -353,6 +373,27 @@ namespace uf_robot_hardware
                     "Supervised position initialization count is invalid");
                 return false;
             }
+            const auto controller_activity =
+                info_.hardware_parameters.find(
+                    "controller_manager_activity_topic");
+            const auto trajectory_controller =
+                info_.hardware_parameters.find(
+                    "trajectory_controller_name");
+            if (controller_activity == info_.hardware_parameters.end() ||
+                controller_activity->second.empty() ||
+                trajectory_controller == info_.hardware_parameters.end() ||
+                trajectory_controller->second.empty())
+            {
+                RCLCPP_ERROR(
+                    LOGGER,
+                    "Supervised controller shutdown requires an exact "
+                    "controller activity binding");
+                return false;
+            }
+            supervised_controller_activity_topic_ =
+                controller_activity->second;
+            supervised_trajectory_controller_name_ =
+                trajectory_controller->second;
             _init_supervised_ros_boundary();
             return true;
         }
@@ -827,6 +868,10 @@ namespace uf_robot_hardware
             supervised_source_agreement_tolerance_rad_;
         config.position_initialization_samples =
             supervised_position_initialization_samples_;
+        config.shutdown_stationary_tolerance_rad =
+            supervised_shutdown_stationary_tolerance_rad_;
+        config.shutdown_stationary_dwell_ns =
+            supervised_shutdown_stationary_dwell_ns_;
         try {
             supervised_driver_.reset(
                 new xarm_api::SupervisedDriver(std::move(config)));
@@ -846,6 +891,7 @@ namespace uf_robot_hardware
         supervised_session_id_ =
             _new_supervised_session_id(supervised_owner_id_);
         supervised_replay_.clear();
+        supervised_shutdown_replay_.clear();
         supervised_hardware_active_.store(false);
         supervised_rt_driver_.store(
             supervised_driver_.get(), std::memory_order_release);
@@ -874,6 +920,7 @@ namespace uf_robot_hardware
                 supervised_driver_.reset();
             }
             supervised_replay_.clear();
+            supervised_shutdown_replay_.clear();
             supervised_session_id_.clear();
             _publish_supervised_state();
         }
@@ -928,6 +975,46 @@ namespace uf_robot_hardware
                 {
                     _set_supervised_command_gate(request, response);
                 });
+        supervised_shutdown_service_ =
+            node_->create_service<
+            xarm_msgs::srv::ShutdownSupervisedController>(
+                boundary + "/shutdown_controller",
+                [this](
+                    const std::shared_ptr<
+                    xarm_msgs::srv::
+                    ShutdownSupervisedController::Request> request,
+                    std::shared_ptr<
+                    xarm_msgs::srv::
+                    ShutdownSupervisedController::Response> response)
+                {
+                    _shutdown_supervised_controller(request, response);
+                });
+        supervised_controller_activity_subscription_ =
+            node_->create_subscription<
+            controller_manager_msgs::msg::ControllerManagerActivity>(
+                supervised_controller_activity_topic_,
+                rclcpp::QoS(rclcpp::KeepLast(1)).
+                reliable().transient_local(),
+                [this](
+                    const controller_manager_msgs::msg::
+                    ControllerManagerActivity::SharedPtr activity)
+                {
+                    supervised_trajectory_controller_active_ =
+                        std::any_of(
+                            activity->controllers.begin(),
+                            activity->controllers.end(),
+                            [this](
+                                const controller_manager_msgs::msg::
+                                NamedLifecycleState & controller)
+                            {
+                                return controller.name ==
+                                    supervised_trajectory_controller_name_ &&
+                                    controller.state.id ==
+                                    lifecycle_msgs::msg::State::
+                                    PRIMARY_STATE_ACTIVE;
+                            });
+                    supervised_controller_activity_known_ = true;
+                });
         supervised_state_timer_ = node_->create_wall_timer(
             std::chrono::milliseconds(50),
             [this]() {
@@ -950,6 +1037,8 @@ namespace uf_robot_hardware
         supervised_state_timer_.reset();
         supervised_command_service_.reset();
         supervised_gate_service_.reset();
+        supervised_shutdown_service_.reset();
+        supervised_controller_activity_subscription_.reset();
         supervised_state_publisher_.reset();
         if (supervised_executor_ != nullptr) {
             supervised_executor_->cancel();
@@ -1002,6 +1091,11 @@ namespace uf_robot_hardware
                 observed.process_restart_required;
             message.report_received = observed.report_received;
             message.position_valid = observed.position_valid;
+            message.position_ever_initialized =
+                observed.position_ever_initialized;
+            message.stationary = observed.stationary;
+            message.stationary_since_steady_time_ns =
+                observed.stationary_since_ns;
             message.command_gate_open = observed.command_gate_open;
             message.command_gate_valid_until_steady_time_ns =
                 observed.command_gate_valid_until_ns;
@@ -1026,6 +1120,8 @@ namespace uf_robot_hardware
                 observed.joint_write_attempt_count;
             message.lifecycle_command_attempt_count =
                 observed.lifecycle_command_attempt_count;
+            message.shutdown_controller_attempt_count =
+                observed.shutdown_controller_attempt_count;
             message.last_joint_read_return_code =
                 observed.last_joint_read_return_code;
             message.last_joint_write_return_code =
@@ -1169,6 +1265,118 @@ namespace uf_robot_hardware
             response->accepted ? valid_until_ns : 0;
         observed = supervised_driver_->observe(_steady_now_ns());
         response->observed_generation = observed.generation;
+        _publish_supervised_state();
+    }
+
+    void UFRobotSystemHardware::_shutdown_supervised_controller(
+        const std::shared_ptr<
+        xarm_msgs::srv::ShutdownSupervisedController::Request> request,
+        std::shared_ptr<
+        xarm_msgs::srv::ShutdownSupervisedController::Response> response)
+    {
+        constexpr std::uint8_t shutdown_operation_tag = 8;
+        constexpr const char * shutdown_confirmation =
+            "SHUTDOWN_CONTROLLER";
+        std::lock_guard<std::mutex> lock(supervised_nrt_mutex_);
+        if (supervised_driver_ == nullptr) {
+            response->reason = "supervised_driver_unavailable";
+            return;
+        }
+        auto observed = supervised_driver_->observe(_steady_now_ns());
+        response->observed_generation = observed.generation;
+
+        SupervisedCommandRecord replay_record;
+        const auto replay = supervised_shutdown_replay_.lookup(
+            request->request_id,
+            shutdown_operation_tag,
+            request->expected_generation,
+            replay_record);
+        if (replay == SupervisedReplayDisposition::kReplay) {
+            response->permitted = replay_record.result.permitted;
+            response->attempted = replay_record.result.attempted;
+            response->return_code = replay_record.result.return_code;
+            response->reason = replay_record.result.reason;
+            response->observed_generation =
+                replay_record.observed_generation;
+            response->process_restart_required =
+                replay_record.result.attempted;
+            return;
+        }
+        if (replay == SupervisedReplayDisposition::kConflict) {
+            response->reason = "request_id_conflict";
+            return;
+        }
+        if (!valid_supervised_request_id(request->request_id)) {
+            response->reason = "invalid_request_id";
+            return;
+        }
+        if (request->confirmation != shutdown_confirmation) {
+            response->reason =
+                "shutdown_controller_confirmation_required";
+            return;
+        }
+        if (request->expected_generation == 0 ||
+            request->expected_generation != observed.generation)
+        {
+            response->reason = "stale_observation_generation";
+            return;
+        }
+        const std::int64_t now_ns = _steady_now_ns();
+        if (!observed.report_received ||
+            observed.source_timestamp_ns <= 0 ||
+            observed.source_timestamp_ns > now_ns ||
+            observed.fresh_until_ns <= now_ns)
+        {
+            response->reason = "supervised_state_stale";
+            return;
+        }
+
+        const SupervisedControllerShutdownFacts facts{
+            observed.connected,
+            observed.report_connected,
+            observed.identity_verified,
+            observed.process_restart_required,
+            observed.command_gate_open,
+            supervised_hardware_active_.load(
+                std::memory_order_acquire),
+            supervised_controller_activity_known_,
+            supervised_trajectory_controller_active_,
+            observed.position_ever_initialized,
+            observed.stationary,
+            observed.report.state,
+            observed.report.mode,
+            observed.report.brake_mask,
+            observed.report.servo_enable_mask,
+            observed.report.error_code,
+            observed.report.warning_code};
+        const char * rejection =
+            supervised_controller_shutdown_rejection(facts);
+        if (rejection != nullptr) {
+            response->reason = rejection;
+            return;
+        }
+
+        const auto result = supervised_driver_->shutdown_controller();
+        observed = supervised_driver_->observe(_steady_now_ns());
+        response->permitted = result.permitted;
+        response->attempted = result.attempted;
+        response->return_code = result.return_code;
+        response->reason = result.reason;
+        response->observed_generation = observed.generation;
+        response->process_restart_required =
+            result.process_restart_required;
+        xarm_api::DriverLifecycleCommandResult replay_result;
+        replay_result.permitted = result.permitted;
+        replay_result.attempted = result.attempted;
+        replay_result.return_code = result.return_code;
+        replay_result.reason = result.reason;
+        supervised_shutdown_replay_.remember(
+            SupervisedCommandRecord{
+                request->request_id,
+                shutdown_operation_tag,
+                request->expected_generation,
+                replay_result,
+                observed.generation});
         _publish_supervised_state();
     }
 

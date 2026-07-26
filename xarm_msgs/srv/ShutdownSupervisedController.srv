@@ -1,0 +1,15 @@
+# Shut down the physical xArm controller through the sole supervised SDK owner.
+#
+# This is intentionally separate from ROS/component teardown and from the
+# ordinary lifecycle primitive service. The owner accepts only the fixed SDK
+# system_control(1) operation; no raw system-control or reboot value is exposed.
+string request_id
+uint64 expected_generation
+string confirmation
+---
+bool permitted
+bool attempted
+int32 return_code
+string reason
+uint64 observed_generation
+bool process_restart_required

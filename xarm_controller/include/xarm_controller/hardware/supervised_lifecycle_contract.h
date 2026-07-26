@@ -71,6 +71,26 @@ enum class SupervisedWriteDisposition
   kFault,
 };
 
+struct SupervisedControllerShutdownFacts
+{
+  bool transport_connected = false;
+  bool report_connected = false;
+  bool identity_verified = false;
+  bool process_restart_required = false;
+  bool command_gate_open = false;
+  bool hardware_component_active = false;
+  bool controller_activity_known = false;
+  bool trajectory_controller_active = false;
+  bool position_ever_initialized = false;
+  bool stationary = false;
+  int state = -1;
+  int mode = -1;
+  int brake_mask = -1;
+  int servo_enable_mask = -1;
+  int error_code = -1;
+  int warning_code = -1;
+};
+
 class SupervisedCommandReplayCache
 {
 public:
@@ -102,6 +122,14 @@ SupervisedWriteDisposition supervised_write_disposition(
   bool submission_accepted);
 
 bool supervised_initial_activation_state(int state);
+
+/// Return nullptr only when physical controller shutdown may be attempted.
+///
+/// Controller error codes 1, 2, and 3 are the documented emergency-stop
+/// inputs and are allowed alongside a fault-free value of 0. Other faults are
+/// not cleared or bypassed by controller shutdown.
+const char * supervised_controller_shutdown_rejection(
+  const SupervisedControllerShutdownFacts & facts);
 
 bool map_supervised_command(
   std::uint8_t command,

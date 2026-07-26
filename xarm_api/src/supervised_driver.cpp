@@ -89,6 +89,11 @@ bool SupervisedDriver::set_command_gate(
   return impl_->session.set_command_gate(open, valid_until_ns);
 }
 
+SupervisedControllerShutdownResult SupervisedDriver::shutdown_controller()
+{
+  return impl_->session.shutdown_controller();
+}
+
 void SupervisedDriver::close() noexcept
 {
   impl_->session.close();
