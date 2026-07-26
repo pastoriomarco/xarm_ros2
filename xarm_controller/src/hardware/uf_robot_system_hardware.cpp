@@ -9,13 +9,14 @@
 #include "xarm_controller/hardware/uf_robot_system_hardware.h"
 
 #include <arpa/inet.h>
-#include <unistd.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
 #include <limits>
+#include <random>
 #include <sstream>
 #include <utility>
 
@@ -37,8 +38,6 @@ namespace uf_robot_hardware
         constexpr int LITE6_DEVICE_TYPE = 9;
         constexpr std::int64_t NANOS_PER_MILLISECOND = 1000000;
         constexpr std::int64_t MIN_GATE_LEASE_NS = 1000000;
-        std::atomic<std::uint64_t> SESSION_COUNTER{0};
-
         std::string decode_xacro_string(const std::string & value)
         {
             if (!value.empty() && value.front() == 'R') {
@@ -1389,11 +1388,28 @@ namespace uf_robot_hardware
     std::string UFRobotSystemHardware::_new_supervised_session_id(
         const std::string& owner_id)
     {
-        const auto sequence =
-            SESSION_COUNTER.fetch_add(1, std::memory_order_acq_rel) + 1;
+        // This session is also the independently restartable transport-owner
+        // component epoch. It must not be reproducible from a PID, ROS name,
+        // artifact, or clock value: a reconfigured owner cannot inherit an
+        // admission/execution generation from the prior transport instance.
+        std::random_device source;
+        std::array<std::uint8_t, 16> random_bytes{};
+        for (auto & value : random_bytes) {
+            value = static_cast<std::uint8_t>(source());
+        }
+        random_bytes[6] =
+            static_cast<std::uint8_t>((random_bytes[6] & 0x0fU) | 0x40U);
+        random_bytes[8] =
+            static_cast<std::uint8_t>((random_bytes[8] & 0x3fU) | 0x80U);
         std::ostringstream value;
-        value << owner_id << ':' << static_cast<long long>(getpid()) <<
-            ':' << _steady_now_ns() << ':' << sequence;
+        value << owner_id << ':';
+        value << std::hex << std::setfill('0');
+        for (std::size_t index = 0; index < random_bytes.size(); ++index) {
+            value << std::setw(2) << static_cast<unsigned>(random_bytes[index]);
+            if (index == 3 || index == 5 || index == 7 || index == 9) {
+                value << '-';
+            }
+        }
         return value.str();
     }
 
