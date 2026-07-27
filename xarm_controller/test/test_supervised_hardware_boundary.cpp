@@ -120,5 +120,19 @@ TEST_F(
     CallbackReturn::SUCCESS);
 }
 
+TEST_F(
+  SupervisedHardwareBoundaryTest,
+  RepeatedImmediateDestructionCannotLoseExecutorCancellation)
+{
+  for (int iteration = 0; iteration < 16; ++iteration) {
+    SCOPED_TRACE(iteration);
+    UFRobotSystemHardware hardware;
+    ASSERT_EQ(
+      hardware.on_init(parameters()),
+      rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::
+      CallbackReturn::SUCCESS);
+  }
+}
+
 }  // namespace
 }  // namespace uf_robot_hardware

@@ -5,9 +5,22 @@
 
 string owner_id
 string session_id
+uint64 owner_publication_sequence
+int64 owner_published_steady_time_ns
 uint64 generation
 int64 source_steady_time_ns
 int64 fresh_until_steady_time_ns
+
+# A lifecycle call may briefly prevent the SDK polling worker from advancing
+# robot observations. The independent owner publication sequence proves the
+# ROS owner executor is still progressing; these fields bound, but never hide,
+# the one physical primitive currently executing.
+bool lifecycle_command_in_flight
+uint64 lifecycle_command_sequence
+uint8 lifecycle_command
+int64 lifecycle_command_started_steady_time_ns
+int64 lifecycle_command_deadline_steady_time_ns
+int64 lifecycle_command_completed_steady_time_ns
 
 bool transport_connected
 bool report_connected

@@ -141,8 +141,8 @@ namespace uf_robot_hardware
 
     UFRobotSystemHardware::~UFRobotSystemHardware()
     {
-        _release_supervised_driver();
         _stop_supervised_ros_boundary();
+        _release_supervised_driver();
     }
 
     bool UFRobotSystemHardware::_init_ufactory_driver(void)
@@ -328,6 +328,9 @@ namespace uf_robot_hardware
                     "command_gate_max_lease_ms",
                     supervised_max_gate_lease_ns_) ||
                 !parse_milliseconds(
+                    "lifecycle_command_timeout_ms",
+                    supervised_lifecycle_command_timeout_ns_) ||
+                !parse_milliseconds(
                     "shutdown_stationary_dwell_ms",
                     supervised_shutdown_stationary_dwell_ns_))
             {
@@ -498,8 +501,8 @@ namespace uf_robot_hardware
         const rclcpp_lifecycle::State&)
     {
         if (supervised_lifecycle_) {
-            _release_supervised_driver();
             _stop_supervised_ros_boundary();
+            _release_supervised_driver();
         }
         return CallbackReturn::SUCCESS;
     }
@@ -942,6 +945,15 @@ namespace uf_robot_hardware
         const rclcpp::QoS state_qos =
             rclcpp::QoS(rclcpp::KeepLast(1)).
             reliable().transient_local();
+        supervised_state_callback_group_ =
+            node_->create_callback_group(
+                rclcpp::CallbackGroupType::MutuallyExclusive);
+        supervised_mutation_callback_group_ =
+            node_->create_callback_group(
+                rclcpp::CallbackGroupType::MutuallyExclusive);
+        supervised_activity_callback_group_ =
+            node_->create_callback_group(
+                rclcpp::CallbackGroupType::MutuallyExclusive);
         supervised_state_publisher_ =
             node_->create_publisher<
             xarm_msgs::msg::SupervisedLifecycleState>(
@@ -959,7 +971,9 @@ namespace uf_robot_hardware
                     ExecuteSupervisedLifecycleCommand::Response> response)
                 {
                     _execute_supervised_command(request, response);
-                });
+                },
+                rclcpp::ServicesQoS(),
+                supervised_mutation_callback_group_);
         supervised_gate_service_ =
             node_->create_service<
             xarm_msgs::srv::SetSupervisedCommandGate>(
@@ -973,7 +987,9 @@ namespace uf_robot_hardware
                     SetSupervisedCommandGate::Response> response)
                 {
                     _set_supervised_command_gate(request, response);
-                });
+                },
+                rclcpp::ServicesQoS(),
+                supervised_mutation_callback_group_);
         supervised_shutdown_service_ =
             node_->create_service<
             xarm_msgs::srv::ShutdownSupervisedController>(
@@ -987,7 +1003,12 @@ namespace uf_robot_hardware
                     ShutdownSupervisedController::Response> response)
                 {
                     _shutdown_supervised_controller(request, response);
-                });
+                },
+                rclcpp::ServicesQoS(),
+                supervised_mutation_callback_group_);
+        rclcpp::SubscriptionOptions activity_options;
+        activity_options.callback_group =
+            supervised_activity_callback_group_;
         supervised_controller_activity_subscription_ =
             node_->create_subscription<
             controller_manager_msgs::msg::ControllerManagerActivity>(
@@ -998,7 +1019,7 @@ namespace uf_robot_hardware
                     const controller_manager_msgs::msg::
                     ControllerManagerActivity::SharedPtr activity)
                 {
-                    supervised_trajectory_controller_active_ =
+                    const bool trajectory_controller_active =
                         std::any_of(
                             activity->controllers.begin(),
                             activity->controllers.end(),
@@ -1012,20 +1033,50 @@ namespace uf_robot_hardware
                                     lifecycle_msgs::msg::State::
                                     PRIMARY_STATE_ACTIVE;
                             });
+                    std::lock_guard<std::mutex> lock(
+                        supervised_nrt_mutex_);
+                    supervised_trajectory_controller_active_ =
+                        trajectory_controller_active;
                     supervised_controller_activity_known_ = true;
-                });
+                },
+                activity_options);
         supervised_state_timer_ = node_->create_wall_timer(
             std::chrono::milliseconds(50),
-            [this]() {
-                std::lock_guard<std::mutex> lock(supervised_nrt_mutex_);
-                _publish_supervised_state();
-            });
+            [this]() { _publish_supervised_state_from_timer(); },
+            supervised_state_callback_group_);
         supervised_executor_.reset(
-            new rclcpp::executors::SingleThreadedExecutor());
+            new rclcpp::executors::MultiThreadedExecutor(
+                rclcpp::ExecutorOptions(), 3));
         supervised_executor_->add_node(node_);
-        supervised_executor_thread_ = std::thread([this]() {
-            supervised_executor_->spin();
-        });
+        supervised_executor_thread_finished_.store(
+            false, std::memory_order_release);
+        try {
+            supervised_executor_thread_ = std::thread([this]() {
+                try {
+                    supervised_executor_->spin();
+                }
+                catch (const std::exception & exception) {
+                    RCLCPP_ERROR(
+                        LOGGER,
+                        "[%s] Supervised ROS executor failed: %s",
+                        robot_ip_.c_str(),
+                        exception.what());
+                }
+                catch (...) {
+                    RCLCPP_ERROR(
+                        LOGGER,
+                        "[%s] Supervised ROS executor failed",
+                        robot_ip_.c_str());
+                }
+                supervised_executor_thread_finished_.store(
+                    true, std::memory_order_release);
+            });
+        }
+        catch (...) {
+            supervised_executor_thread_finished_.store(
+                true, std::memory_order_release);
+            throw;
+        }
     }
 
     void UFRobotSystemHardware::_stop_supervised_ros_boundary(void) noexcept
@@ -1034,17 +1085,25 @@ namespace uf_robot_hardware
             return;
         }
         supervised_state_timer_.reset();
-        supervised_command_service_.reset();
-        supervised_gate_service_.reset();
-        supervised_shutdown_service_.reset();
-        supervised_controller_activity_subscription_.reset();
-        supervised_state_publisher_.reset();
         if (supervised_executor_ != nullptr) {
-            supervised_executor_->cancel();
+            // cancel() before spin() enters its active state is not retained
+            // by rclcpp. Wait for this freshly created thread either to enter
+            // spin or to terminate so destruction cannot strand it.
+            while (!supervised_executor_->is_spinning() &&
+                !supervised_executor_thread_finished_.load(
+                    std::memory_order_acquire))
+            {
+                std::this_thread::yield();
+            }
+            if (supervised_executor_->is_spinning()) {
+                supervised_executor_->cancel();
+            }
         }
         if (supervised_executor_thread_.joinable()) {
             supervised_executor_thread_.join();
         }
+        supervised_executor_thread_finished_.store(
+            true, std::memory_order_release);
         if (supervised_executor_ != nullptr && node_ != nullptr) {
             try {
                 supervised_executor_->remove_node(node_);
@@ -1053,6 +1112,14 @@ namespace uf_robot_hardware
             }
         }
         supervised_executor_.reset();
+        supervised_command_service_.reset();
+        supervised_gate_service_.reset();
+        supervised_shutdown_service_.reset();
+        supervised_controller_activity_subscription_.reset();
+        supervised_state_publisher_.reset();
+        supervised_state_callback_group_.reset();
+        supervised_mutation_callback_group_.reset();
+        supervised_activity_callback_group_.reset();
     }
 
     void UFRobotSystemHardware::_publish_supervised_state(void)
@@ -1126,7 +1193,100 @@ namespace uf_robot_hardware
             message.last_joint_write_return_code =
                 observed.last_joint_write_return_code;
         }
-        supervised_state_publisher_->publish(message);
+        _stamp_cache_and_publish_supervised_state(std::move(message));
+    }
+
+    void UFRobotSystemHardware::_publish_supervised_state_from_timer(void)
+    {
+        std::unique_lock<std::mutex> lock(
+            supervised_nrt_mutex_, std::try_to_lock);
+        if (lock.owns_lock()) {
+            _publish_supervised_state();
+            return;
+        }
+
+        xarm_msgs::msg::SupervisedLifecycleState message;
+        {
+            std::lock_guard<std::mutex> cache_lock(
+                supervised_state_cache_mutex_);
+            if (supervised_state_cache_valid_) {
+                message = supervised_state_cache_;
+            } else {
+                message.owner_id = supervised_owner_id_;
+            }
+        }
+        _stamp_cache_and_publish_supervised_state(std::move(message));
+    }
+
+    void UFRobotSystemHardware::_stamp_cache_and_publish_supervised_state(
+        xarm_msgs::msg::SupervisedLifecycleState message)
+    {
+        auto publisher = supervised_state_publisher_;
+        if (publisher == nullptr) {
+            return;
+        }
+        message.owner_publication_sequence =
+            supervised_owner_publication_sequence_.fetch_add(
+                1, std::memory_order_acq_rel) + 1;
+        message.owner_published_steady_time_ns = _steady_now_ns();
+        message.lifecycle_command_in_flight =
+            supervised_lifecycle_command_in_flight_.load(
+                std::memory_order_acquire);
+        message.lifecycle_command_sequence =
+            supervised_lifecycle_command_sequence_.load(
+                std::memory_order_acquire);
+        message.lifecycle_command =
+            supervised_lifecycle_command_.load(
+                std::memory_order_acquire);
+        message.lifecycle_command_started_steady_time_ns =
+            supervised_lifecycle_command_started_ns_.load(
+                std::memory_order_acquire);
+        message.lifecycle_command_deadline_steady_time_ns =
+            supervised_lifecycle_command_deadline_ns_.load(
+                std::memory_order_acquire);
+        message.lifecycle_command_completed_steady_time_ns =
+            supervised_lifecycle_command_completed_ns_.load(
+                std::memory_order_acquire);
+        {
+            std::lock_guard<std::mutex> cache_lock(
+                supervised_state_cache_mutex_);
+            supervised_state_cache_ = message;
+            supervised_state_cache_valid_ = true;
+        }
+        publisher->publish(std::move(message));
+    }
+
+    void UFRobotSystemHardware::_begin_supervised_lifecycle_command(
+        std::uint8_t command)
+    {
+        const std::int64_t started_ns = _steady_now_ns();
+        const std::int64_t deadline_ns =
+            started_ns >
+            std::numeric_limits<std::int64_t>::max() -
+            supervised_lifecycle_command_timeout_ns_ ?
+            std::numeric_limits<std::int64_t>::max() :
+            started_ns + supervised_lifecycle_command_timeout_ns_;
+        supervised_lifecycle_command_sequence_.fetch_add(
+            1, std::memory_order_acq_rel);
+        supervised_lifecycle_command_.store(
+            command, std::memory_order_release);
+        supervised_lifecycle_command_started_ns_.store(
+            started_ns, std::memory_order_release);
+        supervised_lifecycle_command_deadline_ns_.store(
+            deadline_ns, std::memory_order_release);
+        supervised_lifecycle_command_completed_ns_.store(
+            0, std::memory_order_release);
+        supervised_lifecycle_command_in_flight_.store(
+            true, std::memory_order_release);
+    }
+
+    void UFRobotSystemHardware::_finish_supervised_lifecycle_command(
+        void) noexcept
+    {
+        supervised_lifecycle_command_completed_ns_.store(
+            _steady_now_ns(), std::memory_order_release);
+        supervised_lifecycle_command_in_flight_.store(
+            false, std::memory_order_release);
     }
 
     void UFRobotSystemHardware::_execute_supervised_command(
@@ -1180,8 +1340,28 @@ namespace uf_robot_hardware
             response->reason = "unsupported_supervised_command";
             return;
         }
-        const auto result =
-            supervised_driver_->execute_lifecycle(primitive);
+        _begin_supervised_lifecycle_command(request->command);
+        _publish_supervised_state();
+        xarm_api::DriverLifecycleCommandResult result;
+        try {
+            result = supervised_driver_->execute_lifecycle(primitive);
+        }
+        catch (const std::exception & exception) {
+            _finish_supervised_lifecycle_command();
+            _publish_supervised_state();
+            response->reason =
+                std::string("supervised_lifecycle_command_exception:") +
+                exception.what();
+            return;
+        }
+        catch (...) {
+            _finish_supervised_lifecycle_command();
+            _publish_supervised_state();
+            response->reason =
+                "supervised_lifecycle_command_unknown_exception";
+            return;
+        }
+        _finish_supervised_lifecycle_command();
         observed = supervised_driver_->observe(_steady_now_ns());
         response->permitted = result.permitted;
         response->attempted = result.attempted;
@@ -1355,7 +1535,28 @@ namespace uf_robot_hardware
             return;
         }
 
-        const auto result = supervised_driver_->shutdown_controller();
+        _begin_supervised_lifecycle_command(shutdown_operation_tag);
+        _publish_supervised_state();
+        xarm_api::SupervisedControllerShutdownResult result;
+        try {
+            result = supervised_driver_->shutdown_controller();
+        }
+        catch (const std::exception & exception) {
+            _finish_supervised_lifecycle_command();
+            _publish_supervised_state();
+            response->reason =
+                std::string("supervised_controller_shutdown_exception:") +
+                exception.what();
+            return;
+        }
+        catch (...) {
+            _finish_supervised_lifecycle_command();
+            _publish_supervised_state();
+            response->reason =
+                "supervised_controller_shutdown_unknown_exception";
+            return;
+        }
+        _finish_supervised_lifecycle_command();
         observed = supervised_driver_->observe(_steady_now_ns());
         response->permitted = result.permitted;
         response->attempted = result.attempted;

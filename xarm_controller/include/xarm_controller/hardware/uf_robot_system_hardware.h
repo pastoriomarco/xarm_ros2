@@ -19,7 +19,7 @@
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
-#include <rclcpp/executors/single_threaded_executor.hpp>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/empty.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
@@ -141,6 +141,11 @@ namespace uf_robot_hardware
         void _init_supervised_ros_boundary(void);
         void _stop_supervised_ros_boundary(void) noexcept;
         void _publish_supervised_state(void);
+        void _publish_supervised_state_from_timer(void);
+        void _stamp_cache_and_publish_supervised_state(
+            xarm_msgs::msg::SupervisedLifecycleState message);
+        void _begin_supervised_lifecycle_command(std::uint8_t command);
+        void _finish_supervised_lifecycle_command(void) noexcept;
         void _execute_supervised_command(
             const std::shared_ptr<xarm_msgs::srv::ExecuteSupervisedLifecycleCommand::Request> request,
             std::shared_ptr<xarm_msgs::srv::ExecuteSupervisedLifecycleCommand::Response> response);
@@ -166,6 +171,7 @@ namespace uf_robot_hardware
         std::int64_t supervised_io_period_ns_ = 5000000;
         std::int64_t supervised_transport_loss_timeout_ns_ = 2000000000;
         std::int64_t supervised_max_gate_lease_ns_ = 250000000;
+        std::int64_t supervised_lifecycle_command_timeout_ns_ = 4000000000;
         std::int64_t supervised_shutdown_stationary_dwell_ns_ = 1000000000;
         double supervised_source_agreement_tolerance_rad_ = 0.002;
         double supervised_shutdown_stationary_tolerance_rad_ = 0.001;
@@ -180,8 +186,12 @@ namespace uf_robot_hardware
         SupervisedCommandReplayCache supervised_shutdown_replay_{16};
         bool supervised_controller_activity_known_ = false;
         bool supervised_trajectory_controller_active_ = false;
-        rclcpp::executors::SingleThreadedExecutor::SharedPtr supervised_executor_;
+        rclcpp::CallbackGroup::SharedPtr supervised_state_callback_group_;
+        rclcpp::CallbackGroup::SharedPtr supervised_mutation_callback_group_;
+        rclcpp::CallbackGroup::SharedPtr supervised_activity_callback_group_;
+        rclcpp::executors::MultiThreadedExecutor::SharedPtr supervised_executor_;
         std::thread supervised_executor_thread_;
+        std::atomic<bool> supervised_executor_thread_finished_{true};
         rclcpp::Publisher<
             xarm_msgs::msg::SupervisedLifecycleState>::SharedPtr
             supervised_state_publisher_;
@@ -198,6 +208,19 @@ namespace uf_robot_hardware
             controller_manager_msgs::msg::ControllerManagerActivity>::SharedPtr
             supervised_controller_activity_subscription_;
         rclcpp::TimerBase::SharedPtr supervised_state_timer_;
+        std::mutex supervised_state_cache_mutex_;
+        xarm_msgs::msg::SupervisedLifecycleState supervised_state_cache_;
+        bool supervised_state_cache_valid_ = false;
+        std::atomic<std::uint64_t> supervised_owner_publication_sequence_{0};
+        std::atomic<bool> supervised_lifecycle_command_in_flight_{false};
+        std::atomic<std::uint64_t> supervised_lifecycle_command_sequence_{0};
+        std::atomic<std::uint8_t> supervised_lifecycle_command_{0};
+        std::atomic<std::int64_t>
+            supervised_lifecycle_command_started_ns_{0};
+        std::atomic<std::int64_t>
+            supervised_lifecycle_command_deadline_ns_{0};
+        std::atomic<std::int64_t>
+            supervised_lifecycle_command_completed_ns_{0};
     };
 }
 
