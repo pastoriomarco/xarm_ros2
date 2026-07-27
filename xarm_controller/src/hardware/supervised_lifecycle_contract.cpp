@@ -145,6 +145,24 @@ bool supervised_initial_activation_state(int state)
   return state == kReadyFeedbackState;
 }
 
+bool supervised_command_gate_generation_permitted(
+  std::uint64_t expected_generation,
+  std::uint64_t observed_generation,
+  bool command_gate_open,
+  std::int64_t command_gate_valid_until_ns,
+  std::int64_t now_ns)
+{
+  if (expected_generation == 0 ||
+    expected_generation > observed_generation)
+  {
+    return false;
+  }
+  return expected_generation == observed_generation ||
+         (
+    command_gate_open &&
+    command_gate_valid_until_ns > now_ns);
+}
+
 const char * supervised_controller_shutdown_rejection(
   const SupervisedControllerShutdownFacts & facts)
 {

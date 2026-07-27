@@ -123,6 +123,17 @@ SupervisedWriteDisposition supervised_write_disposition(
 
 bool supervised_initial_activation_state(int state);
 
+/// Accept an exact observation for an initial gate open. Once the owner has
+/// already opened a still-valid gate, allow a renewal based on an older
+/// observation generation; the service revalidates the current driver facts
+/// before applying that renewal.
+bool supervised_command_gate_generation_permitted(
+  std::uint64_t expected_generation,
+  std::uint64_t observed_generation,
+  bool command_gate_open,
+  std::int64_t command_gate_valid_until_ns,
+  std::int64_t now_ns);
+
 /// Return nullptr only when physical controller shutdown may be attempted.
 ///
 /// Controller error codes 1, 2, and 3 are the documented emergency-stop

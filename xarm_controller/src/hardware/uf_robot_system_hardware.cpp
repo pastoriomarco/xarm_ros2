@@ -1413,8 +1413,13 @@ namespace uf_robot_hardware
             response->reason = "process_restart_required";
             return;
         }
-        if (request->expected_generation == 0 ||
-            request->expected_generation != observed.generation)
+        const std::int64_t now_ns = _steady_now_ns();
+        if (!supervised_command_gate_generation_permitted(
+                request->expected_generation,
+                observed.generation,
+                observed.command_gate_open,
+                observed.command_gate_valid_until_ns,
+                now_ns))
         {
             response->reason = "stale_observation_generation";
             return;
@@ -1425,7 +1430,6 @@ namespace uf_robot_hardware
             response->reason = "invalid_command_gate_lease";
             return;
         }
-        const std::int64_t now_ns = _steady_now_ns();
         if (now_ns >
             std::numeric_limits<std::int64_t>::max() -
             request->lease_duration_ns)

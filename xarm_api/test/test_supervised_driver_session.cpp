@@ -395,6 +395,57 @@ TEST(SupervisedDriverSession, StartupObservesWithoutSendingCommands)
   EXPECT_LT(release_position, disconnect_position);
 }
 
+TEST(
+  SupervisedDriverSession,
+  StartupObservationPreservesExistingRobotLifecycleState)
+{
+  const auto report_with = [](
+    int state, int mode, int brake_mask, int servo_enable_mask,
+    int error_code)
+    {
+      xarm_api::SupervisedDriverReport report;
+      report.state = state;
+      report.mode = mode;
+      report.brake_mask = brake_mask;
+      report.servo_enable_mask = servo_enable_mask;
+      report.error_code = error_code;
+      report.warning_code = 0;
+      return report;
+    };
+  const std::array<xarm_api::SupervisedDriverReport, 5> reports{{
+    report_with(4, 0, 0, 0, 0),
+    report_with(2, 0, 63, 63, 0),
+    report_with(2, 1, 63, 63, 0),
+    report_with(4, 0, 0, 0, 2),
+    report_with(4, 0, 63, 63, 9),
+  }};
+
+  for (const auto & report : reports) {
+    auto rig = make_rig();
+    rig.transport->emit_report(report);
+    rig.session->service_io_once();
+
+    const auto observation = rig.session->observe(0);
+    EXPECT_EQ(report.state, observation.report.state);
+    EXPECT_EQ(report.mode, observation.report.mode);
+    EXPECT_EQ(report.brake_mask, observation.report.brake_mask);
+    EXPECT_EQ(
+      report.servo_enable_mask, observation.report.servo_enable_mask);
+    EXPECT_EQ(report.error_code, observation.report.error_code);
+    EXPECT_EQ(report.warning_code, observation.report.warning_code);
+    EXPECT_EQ(0U, observation.lifecycle_command_attempt_count);
+    EXPECT_EQ(0U, observation.shutdown_controller_attempt_count);
+    EXPECT_EQ(0U, observation.joint_write_attempt_count);
+    EXPECT_EQ(0, rig.state->clear_error_calls);
+    EXPECT_EQ(0, rig.state->clear_warning_calls);
+    EXPECT_EQ(0, rig.state->set_motion_enabled_calls);
+    EXPECT_EQ(0, rig.state->set_mode_calls);
+    EXPECT_EQ(0, rig.state->set_state_calls);
+    EXPECT_EQ(0, rig.state->shutdown_controller_calls);
+    EXPECT_EQ(0, rig.state->joint_write_calls);
+  }
+}
+
 TEST(SupervisedDriverSession, ReportAndJointPollPopulateIndependentCaches)
 {
   auto rig = make_rig();
@@ -552,6 +603,44 @@ TEST(SupervisedDriverSession, PoweredAgreeingExactZeroPoseIsValid)
   for (std::size_t index = 0; index < 6; ++index) {
     EXPECT_DOUBLE_EQ(0.0, joints.positions[index]);
   }
+}
+
+TEST(
+  SupervisedDriverSession,
+  HealthyAsynchronousSourcesDoNotInvalidateAnInitializedMovingPose)
+{
+  auto rig = make_rig();
+  initialize_powered_pose(rig);
+  ASSERT_TRUE(rig.session->set_command_gate(true, future_deadline()));
+
+  xarm_api::SupervisedDriverReport lagging_report;
+  lagging_report.state = 2;
+  lagging_report.mode = 1;
+  lagging_report.brake_mask = 63;
+  lagging_report.servo_enable_mask = 63;
+  lagging_report.error_code = 0;
+  lagging_report.warning_code = 0;
+
+  for (int sample = 0; sample < 3; ++sample) {
+    rig.state->joint_positions[5] += 0.01F;
+    rig.state->joint_velocities[5] = 0.05F;
+    rig.transport->emit_report(lagging_report);
+    EXPECT_TRUE(rig.session->observe(0).position_valid);
+    rig.session->service_io_once();
+
+    const auto observation = rig.session->observe(0);
+    EXPECT_TRUE(observation.position_valid);
+    EXPECT_TRUE(observation.command_gate_open);
+    xarm_api::SupervisedDriverJointState joints;
+    ASSERT_TRUE(rig.session->read_joint_state(joints));
+    EXPECT_FLOAT_EQ(rig.state->joint_positions[5], joints.positions[5]);
+  }
+
+  std::array<double, xarm_api::kSupervisedDriverMaximumJoints>
+  command{{0.0, 0.0, 0.0, 0.0, 0.0, 0.03, 0.0}};
+  ASSERT_TRUE(rig.session->submit_joint_position_command(command, 6));
+  rig.session->service_io_once();
+  EXPECT_EQ(1, rig.state->joint_write_calls);
 }
 
 TEST(SupervisedDriverSession, LosingPoweredStateInvalidatesPoseAndCommandGate)

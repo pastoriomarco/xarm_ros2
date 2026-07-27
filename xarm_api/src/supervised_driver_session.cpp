@@ -665,22 +665,30 @@ void SupervisedDriverSession::service_io_once()
       if (sources_agree) {
         last_position_initialization_report_generation_ =
           report_generation;
-        const std::size_t match_count =
-          position_initialization_match_count_.fetch_add(
-          1, std::memory_order_acq_rel) + 1;
-        if (match_count >=
-          config_.position_initialization_samples)
-        {
-          position_initialized_.store(true, std::memory_order_release);
-          position_ever_initialized_ = true;
-          observation_.position_ever_initialized = true;
+        if (!position_initialized_.load(std::memory_order_acquire)) {
+          const std::size_t match_count =
+            position_initialization_match_count_.fetch_add(
+            1, std::memory_order_acq_rel) + 1;
+          if (match_count >=
+            config_.position_initialization_samples)
+          {
+            position_initialized_.store(true, std::memory_order_release);
+            position_ever_initialized_ = true;
+            observation_.position_ever_initialized = true;
+          }
         }
       } else if (new_report) {
         last_position_initialization_report_generation_ =
           report_generation;
-        position_initialization_match_count_.store(
-          0, std::memory_order_release);
-        position_initialized_.store(false, std::memory_order_release);
+        // Rich reports and direct joint polls are not time-aligned. Their
+        // positions qualify the initial powered pose, but normal motion must
+        // not revoke an already qualified pose merely because the newer poll
+        // has advanced beyond the report. Explicit report faults, drive-mask
+        // loss, read failure, and transport loss still clear the latch.
+        if (!position_initialized_.load(std::memory_order_acquire)) {
+          position_initialization_match_count_.store(
+            0, std::memory_order_release);
+        }
       }
       position_initialized =
         position_initialized_.load(std::memory_order_acquire);

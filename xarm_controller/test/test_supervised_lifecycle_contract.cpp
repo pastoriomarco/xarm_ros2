@@ -97,6 +97,31 @@ TEST(SupervisedLifecycleContract, ActivatesOnlyFromObservedReadyFeedback)
   EXPECT_FALSE(uf_robot_hardware::supervised_initial_activation_state(5));
 }
 
+TEST(
+  SupervisedLifecycleContract,
+  RenewsAnUnexpiredGateAcrossObservationGenerationAdvance)
+{
+  constexpr std::int64_t now_ns = 1'000;
+  EXPECT_TRUE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      17, 17, false, 0, now_ns));
+  EXPECT_TRUE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      17, 18, true, now_ns + 1, now_ns));
+  EXPECT_FALSE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      17, 18, false, 0, now_ns));
+  EXPECT_FALSE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      17, 18, true, now_ns, now_ns));
+  EXPECT_FALSE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      0, 18, true, now_ns + 1, now_ns));
+  EXPECT_FALSE(
+    uf_robot_hardware::supervised_command_gate_generation_permitted(
+      19, 18, true, now_ns + 1, now_ns));
+}
+
 TEST(SupervisedLifecycleContract, MapsOnlySevenNamedPrimitives)
 {
   using Request =
