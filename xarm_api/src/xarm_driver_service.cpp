@@ -123,6 +123,7 @@ namespace xarm_api
         service_config_tgpio_reset_when_stop_ = _create_service<xarm_msgs::srv::SetInt16>("config_tgpio_reset_when_stop", &XArmDriver::_config_tgpio_reset_when_stop);
         service_config_cgpio_reset_when_stop_ = _create_service<xarm_msgs::srv::SetInt16>("config_cgpio_reset_when_stop", &XArmDriver::_config_cgpio_reset_when_stop);
         service_set_rs485_use_503_port_ = _create_service<xarm_msgs::srv::SetInt16>("set_rs485_use_503_port", &XArmDriver::_set_rs485_use_503_port);
+        service_system_control_ = _create_service<xarm_msgs::srv::SetInt16>("system_control", &XArmDriver::_system_control);
         // OLD SERVICE
         service_ft_sensor_enable_ = _create_service<xarm_msgs::srv::SetInt16>("ft_sensor_enable", &XArmDriver::_set_ft_sensor_enable);
         service_ft_sensor_app_set_ = _create_service<xarm_msgs::srv::SetInt16>("ft_sensor_app_set", &XArmDriver::_set_ft_sensor_mode);
@@ -300,7 +301,7 @@ namespace xarm_api
 
     bool XArmDriver::_clean_error(const std::shared_ptr<xarm_msgs::srv::Call::Request> req, std::shared_ptr<xarm_msgs::srv::Call::Response> res) 
     {
-        res->ret = arm->clean_error();
+        res->ret = clean_error();
         return true;
     }
 
@@ -712,6 +713,13 @@ namespace xarm_api
     bool XArmDriver::_set_rs485_use_503_port(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res)
     {
         res->ret = arm->set_rs485_use_503_port(req->data);
+        res->message = "data=" + std::to_string(req->data);
+        return true;
+    }
+
+    bool XArmDriver::_system_control(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res)
+    {
+        res->ret = arm->system_control(req->data);
         res->message = "data=" + std::to_string(req->data);
         return true;
     }

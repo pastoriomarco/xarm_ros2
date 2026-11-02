@@ -40,6 +40,7 @@ set(msg_files
   "msg/RobotMsg.msg"
   "msg/IOState.msg"
   "msg/CIOState.msg"
+  "msg/IOStates.msg"
   "msg/MoveVelocity.msg"
 )
 

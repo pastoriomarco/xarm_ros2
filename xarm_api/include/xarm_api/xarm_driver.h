@@ -35,6 +35,8 @@ namespace xarm_api
         void pub_ftsensor_raw_state(geometry_msgs::msg::WrenchStamped &wrench_msg);
         
         bool is_connected(void);
+        /* clean_error, then turn tool I/O monitoring back on when io_states is enabled */
+        int clean_error(void);
         std::string controller_error_interpreter(int err=-1);
 
         rclcpp::Logger get_logger() { return node_->get_logger(); }
@@ -72,6 +74,8 @@ namespace xarm_api
         void _init_service(void);
         void _init_subscription(void);
         bool _firmware_version_is_ge(int major, int minor, int revision);
+        void _set_tgpio_monitor(void);
+        void _pub_io_states(unsigned char *io_fp);
 
     public:
         XArmAPI *arm;
@@ -93,6 +97,10 @@ namespace xarm_api
         int vacuum_gripper_hardware_version_;
         std::string report_type_;
         std::vector<std::string> joint_names_;
+        bool io_states_enable_;
+        int io_states_rate_;
+        int io_states_tgpio_monitor_frequency_;
+        xarm_msgs::msg::IOStates io_states_msg_;
         sensor_msgs::msg::JointState joint_state_msg_;
         geometry_msgs::msg::WrenchStamped ftsensor_msg_;
         xarm_msgs::msg::RobotMsg xarm_state_msg_;
@@ -103,6 +111,7 @@ namespace xarm_api
         rclcpp::Publisher<xarm_msgs::msg::CIOState>::SharedPtr cgpio_state_pub_;
         rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr ftsensor_ext_state_pub_;
         rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr ftsensor_raw_state_pub_;
+        rclcpp::Publisher<xarm_msgs::msg::IOStates>::SharedPtr io_states_pub_;
 
         bool xarm_gripper_init_loop_;
         int xarm_gripper_speed_;
@@ -246,6 +255,7 @@ namespace xarm_api
         rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_config_tgpio_reset_when_stop_;
         rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_config_cgpio_reset_when_stop_;
         rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_set_rs485_use_503_port_;
+        rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_system_control_;
         // OLD SERVICE
         rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_ft_sensor_enable_;
         rclcpp::Service<xarm_msgs::srv::SetInt16>::SharedPtr service_ft_sensor_app_set_;
@@ -275,6 +285,7 @@ namespace xarm_api
         bool _config_tgpio_reset_when_stop(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res);
         bool _config_cgpio_reset_when_stop(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res);
         bool _set_rs485_use_503_port(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res);
+        bool _system_control(const std::shared_ptr<xarm_msgs::srv::SetInt16::Request> req, std::shared_ptr<xarm_msgs::srv::SetInt16::Response> res);
 
         // SetInt16ById
         rclcpp::Service<xarm_msgs::srv::SetInt16ById>::SharedPtr service_motion_enable_;

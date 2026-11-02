@@ -174,6 +174,10 @@ namespace xarm_api
         node_->get_parameter_or("joint_states_rate", rate, -1);
         joint_state_rate_ = rate > 0 ? rate : joint_state_rate_;
 
+        node_->get_parameter_or("io_states.enable", io_states_enable_, false);
+        node_->get_parameter_or("io_states.rate", io_states_rate_, 100);
+        node_->get_parameter_or("io_states.tgpio_monitor_frequency", io_states_tgpio_monitor_frequency_, 100);
+
         RCLCPP_INFO(node_->get_logger(), "robot_ip=%s, report_type=%s, dof=%d", server_ip.c_str(), report_type_.c_str(), dof_);
 
         bool baud_checkset = true;
@@ -289,12 +293,24 @@ namespace xarm_api
         bool add_bio_gripper;
         node_->get_parameter_or("add_bio_gripper", add_bio_gripper, false);
 
-        if (_firmware_version_is_ge(2, 7, 101) && (add_gripper || add_bio_gripper)) {
+        if (io_states_enable_ && !_firmware_version_is_ge(2, 7, 101)) {
+            RCLCPP_ERROR(node_->get_logger(), "io_states needs firmware >= 2.7.101, xarm_io_states is not published");
+            io_states_enable_ = false;
+        }
+        if (io_states_enable_) _set_tgpio_monitor();
+
+        if (_firmware_version_is_ge(2, 7, 101) && (add_gripper || add_bio_gripper || io_states_enable_)) {
             sock_rt_ = new SocketPort((char *)server_ip.data(), 30000, 10, 1024, 1);
-            std::thread([this]() {
+            std::thread([this, add_gripper, add_bio_gripper]() {
                 int ret;
                 int size = 0;
                 unsigned char rx_data[1024];
+                bool pub_gripper = add_gripper || add_bio_gripper;
+                // I/O block: 20 bytes after the external-device area (frame bytes 785-804)
+                bool io_frame_ok = false;
+                bool io_short_logged = false;
+                auto io_period = std::chrono::nanoseconds(io_states_rate_ > 0 ? 1000000000 / io_states_rate_ : 0);
+                auto io_next_pub = std::chrono::steady_clock::now();
 
                 // float target_joint_positions[7];
                 // float target_joint_velocities[7];
@@ -321,7 +337,10 @@ namespace xarm_api
                     memset(rx_data, 0, 1024);
                     ret = sock_rt_->read_frame(rx_data);
                     if (ret != 0) continue;
-                    if (size == 0) size = bin8_to_32(rx_data + 4);
+                    if (size == 0) {
+                        size = bin8_to_32(rx_data + 4);
+                        io_frame_ok = size >= 804;
+                    }
                     unsigned char *data_fp = &rx_data[4];
 
                     // hex_to_nfp32(data_fp + 32, target_joint_positions, 7);
@@ -359,13 +378,30 @@ namespace xarm_api
                     // }
                     // pub_joint_state(joint_state_msg_);
 
-                    if (dev_type == 1 || dev_type == 2) {
+                    if (pub_gripper && (dev_type == 1 || dev_type == 2)) {
                         gripper_pulse = (int)((asin((external_device_info[0] - 16) / 110.0) * 57.29577951308232 + 8.33) * 18.28);
                         _pub_xarm_gripper_joint_states(gripper_pulse);
                     }
-                    else if (dev_type == 3) {
+                    else if (pub_gripper && dev_type == 3) {
                         // 注: 这里是mm
                         _pub_bio_gripper_joint_states(external_device_info[0]);
+                    }
+
+                    if (io_states_enable_) {
+                        if (!io_frame_ok) {
+                            if (!io_short_logged) {
+                                RCLCPP_ERROR(node_->get_logger(), "port 30000 frame is %d bytes, the I/O block needs 804, xarm_io_states is not published", size);
+                                io_short_logged = true;
+                            }
+                        }
+                        else {
+                            // decimate to io_states.rate: publish the newest frame once per period
+                            auto now = std::chrono::steady_clock::now();
+                            if (now >= io_next_pub) {
+                                _pub_io_states(data_fp + 784);
+                                io_next_pub = std::max(io_next_pub + io_period, now);
+                            }
+                        }
                     }
 
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -375,6 +411,37 @@ namespace xarm_api
         else {
             sock_rt_ = NULL;
         }
+    }
+
+    int XArmDriver::clean_error(void)
+    {
+        int ret = arm->clean_error();
+        if (ret == 0 && io_states_enable_) _set_tgpio_monitor();
+        return ret;
+    }
+
+    void XArmDriver::_set_tgpio_monitor(void)
+    {
+        int ret = arm->set_tgpio_monitor_params(1, io_states_tgpio_monitor_frequency_);
+        RCLCPP_INFO(node_->get_logger(), "set_tgpio_monitor_params(1, %d), ret=%d", io_states_tgpio_monitor_frequency_, ret);
+    }
+
+    void XArmDriver::_pub_io_states(unsigned char *io_fp)
+    {
+        int analogs[6];
+        io_states_msg_.header.stamp = node_->get_clock()->now();
+        io_states_msg_.cgpio_digital_inputs = bin8_to_16(io_fp);
+        io_states_msg_.cgpio_digital_outputs = bin8_to_16(io_fp + 2);
+        bin8_to_ns16(io_fp + 4, analogs, 4);
+        io_states_msg_.tgpio_digital_inputs = bin8_to_16(io_fp + 12);
+        io_states_msg_.tgpio_digital_outputs = bin8_to_16(io_fp + 14);
+        bin8_to_ns16(io_fp + 16, analogs + 4, 2);
+        for (int i = 0; i < 2; i++) {
+            io_states_msg_.cgpio_analog_inputs[i] = analogs[i] / 1000.0;
+            io_states_msg_.cgpio_analog_outputs[i] = analogs[i + 2] / 1000.0;
+            io_states_msg_.tgpio_analog_inputs[i] = analogs[i + 4] / 1000.0;
+        }
+        io_states_pub_->publish(io_states_msg_);
     }
 
     bool XArmDriver::_firmware_version_is_ge(int major, int minor, int revision)
@@ -400,6 +467,8 @@ namespace xarm_api
         cgpio_state_pub_ = hw_node_->create_publisher<xarm_msgs::msg::CIOState>("xarm_cgpio_states", 10);
         ftsensor_ext_state_pub_ = hw_node_->create_publisher<geometry_msgs::msg::WrenchStamped>("uf_ftsensor_ext_states", 10);
         ftsensor_raw_state_pub_ = hw_node_->create_publisher<geometry_msgs::msg::WrenchStamped>("uf_ftsensor_raw_states", 10);
+        if (io_states_enable_)
+            io_states_pub_ = hw_node_->create_publisher<xarm_msgs::msg::IOStates>("xarm_io_states", 10);
     }
 
     sensor_msgs::msg::JointState* XArmDriver::get_joint_states()

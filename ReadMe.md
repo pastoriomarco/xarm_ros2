@@ -168,6 +168,17 @@ __Reminder 4: The <hw_ns> described below is replaced with the actual one, the x
 
         __Note:__: some of the topics are only available when specific __report_type__ is set at launch stage. Refer [here](https://github.com/xArm-Developer/xarm_ros#report_type-argument).  
 
+        __xarm_io_states__: is of type __xarm_msgs::msg::IOStates__ (controller digital/analog inputs and outputs, tool digital inputs/outputs and analog inputs; analog values in V), read from the real-time report on port 30000 (firmware >= 2.7.101). It is off by default and configured under the "io_states" domain:
+        ```
+        io_states:
+            enable: false                 # true: open port 30000 and publish xarm_io_states
+            rate: 100                     # publish rate (Hz), the newest report frame is published once per period
+            tgpio_monitor_frequency: 100  # tool I/O monitoring frequency (Hz), set with set_tgpio_monitor_params(1, frequency) at start and after every successful clean_error
+        ```
+        A report frame without the I/O block (shorter than 804 bytes) is logged once and nothing is published. Values that last less than one publish period can be missed.  
+
+        __system_control__ service (__xarm_msgs::srv::SetInt16__, off by default): data 1 shuts down the controller, 2 reboots it.  
+
     
     - __Launch and test (xArm)__:  
 

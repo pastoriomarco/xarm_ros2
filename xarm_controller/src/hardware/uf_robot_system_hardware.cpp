@@ -248,7 +248,7 @@ namespace uf_robot_hardware
 
     CallbackReturn UFRobotSystemHardware::on_activate(const rclcpp_lifecycle::State& previous_state)
     {
-        xarm_driver_.arm->clean_error();
+        xarm_driver_.clean_error();
         xarm_driver_.arm->clean_warn();
         xarm_driver_.arm->motion_enable(true);
 		xarm_driver_.arm->set_mode(velocity_control_ ? XARM_MODE::VELO_JOINT : XARM_MODE::SERVO);

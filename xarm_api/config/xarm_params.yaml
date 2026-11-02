@@ -6,6 +6,10 @@ ufactory_driver:
     joint_states:
       rate: -1
       flags: -1
+    io_states:
+      enable: false  # When true, publish controller and tool I/O from the real-time report (port 30000) on xarm_io_states
+      rate: 100
+      tgpio_monitor_frequency: 100
     xarm_gripper:
       joint_names: ['drive_joint', 'left_finger_joint', 'left_inner_knuckle_joint', 'right_outer_knuckle_joint', 'right_finger_joint', 'right_inner_knuckle_joint']
       speed: 2000
@@ -75,6 +79,7 @@ ufactory_driver:
       set_only_check_type: false
       config_tgpio_reset_when_stop: false
       config_cgpio_reset_when_stop: false
+      system_control: false
       motion_enable: true
       set_servo_attach: false
       set_servo_detach: false
