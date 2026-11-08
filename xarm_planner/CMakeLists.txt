@@ -14,7 +14,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic
     -Wno-sign-compare
-    -Wno-unused-parameter 
+    -Wno-unused-parameter
     -Wno-unused-variable
   )
 endif()
@@ -32,7 +32,13 @@ find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(xarm_msgs REQUIRED)
 
-set(dependencies "rclcpp" "std_msgs" "geometry_msgs" "moveit_msgs" "xarm_msgs" "moveit")
+set(dependency_targets
+  rclcpp::rclcpp
+  ${std_msgs_TARGETS}
+  ${geometry_msgs_TARGETS}
+  ${moveit_msgs_TARGETS}
+  ${xarm_msgs_TARGETS}
+)
 
 include_directories(
   include
@@ -42,83 +48,83 @@ include_directories(
 add_library(xarm_planner SHARED
   src/xarm_planner.cpp
 )
-ament_target_dependencies(xarm_planner 
-  moveit_ros_planning_interface
-  ${dependencies}
+target_link_libraries(xarm_planner
+  PUBLIC
+  moveit_ros_planning_interface::moveit_move_group_interface
+  moveit_ros_planning_interface::moveit_planning_scene_interface
+  ${dependency_targets}
 )
 
 add_executable(xarm_planner_node src/xarm_planner_node.cpp)
-ament_target_dependencies(xarm_planner_node
-  ${dependencies}
-)
-target_link_libraries(xarm_planner_node 
+target_link_libraries(xarm_planner_node
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(xarm_gripper_planner_node src/xarm_gripper_planner_node.cpp)
-ament_target_dependencies(xarm_gripper_planner_node
-  ${dependencies}
-)
-target_link_libraries(xarm_gripper_planner_node 
+target_link_libraries(xarm_gripper_planner_node
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(test_xarm_planner_api_joint test/test_xarm_planner_api_joint.cpp)
-ament_target_dependencies(test_xarm_planner_api_joint
-  ${dependencies}
-)
-target_link_libraries(test_xarm_planner_api_joint 
+target_link_libraries(test_xarm_planner_api_joint
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(test_dual_xarm_planner_api_joint test/test_dual_xarm_planner_api_joint.cpp)
-ament_target_dependencies(test_dual_xarm_planner_api_joint
-  ${dependencies}
-)
-target_link_libraries(test_dual_xarm_planner_api_joint 
+target_link_libraries(test_dual_xarm_planner_api_joint
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(test_xarm_planner_api_pose test/test_xarm_planner_api_pose.cpp)
-ament_target_dependencies(test_xarm_planner_api_pose
-  ${dependencies}
-)
-target_link_libraries(test_xarm_planner_api_pose 
+target_link_libraries(test_xarm_planner_api_pose
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(test_xarm_gripper_planner_api_joint test/test_xarm_gripper_planner_api_joint.cpp)
-ament_target_dependencies(test_xarm_gripper_planner_api_joint
-  ${dependencies}
-)
-target_link_libraries(test_xarm_gripper_planner_api_joint 
+target_link_libraries(test_xarm_gripper_planner_api_joint
+  PRIVATE
   xarm_planner
+  ${dependency_targets}
   ${ament_LIBRARIES}
 )
 
 add_executable(test_xarm_planner_client_joint test/test_xarm_planner_client_joint.cpp)
-ament_target_dependencies(test_xarm_planner_client_joint
-  ${dependencies}
+target_link_libraries(test_xarm_planner_client_joint
+  PRIVATE
+  ${dependency_targets}
 )
 
 add_executable(test_xarm_planner_client_pose test/test_xarm_planner_client_pose.cpp)
-ament_target_dependencies(test_xarm_planner_client_pose
-  ${dependencies}
+target_link_libraries(test_xarm_planner_client_pose
+  PRIVATE
+  ${dependency_targets}
 )
 
 add_executable(test_xarm_gripper_planner_client_joint test/test_xarm_gripper_planner_client_joint.cpp)
-ament_target_dependencies(test_xarm_gripper_planner_client_joint
-  ${dependencies}
+target_link_libraries(test_xarm_gripper_planner_client_joint
+  PRIVATE
+  ${dependency_targets}
 )
 
 add_executable(test_lite_gripper_realmove test/test_lite_gripper_realmove.cpp)
-ament_target_dependencies(test_lite_gripper_realmove
-  ${dependencies}
+target_link_libraries(test_lite_gripper_realmove
+  PRIVATE
+  ${dependency_targets}
 )
 
 if(BUILD_TESTING)
@@ -138,7 +144,7 @@ install(
 )
 
 install(
-  TARGETS 
+  TARGETS
   xarm_planner
   xarm_planner_node
   xarm_gripper_planner_node
