@@ -41,16 +41,15 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-set(THIS_PACKAGE_INCLUDE_DEPENDS
-  rclcpp
-  rclcpp_components
-  std_msgs
-  std_srvs
-  sensor_msgs
-  control_msgs
-  moveit_msgs
-  geometry_msgs
-  moveit_ros_planning
+set(THIS_PACKAGE_LINK_TARGETS
+  rclcpp::rclcpp
+  rclcpp_components::component
+  ${std_msgs_TARGETS}
+  ${std_srvs_TARGETS}
+  ${sensor_msgs_TARGETS}
+  ${control_msgs_TARGETS}
+  ${moveit_msgs_TARGETS}
+  ${geometry_msgs_TARGETS}
 )
 
 include_directories(
@@ -59,14 +58,20 @@ include_directories(
 )
 
 add_library(xarm_joystick_input SHARED src/xarm_joystick_input.cpp)
-ament_target_dependencies(xarm_joystick_input ${THIS_PACKAGE_INCLUDE_DEPENDS})
+target_link_libraries(xarm_joystick_input
+  PUBLIC
+  ${THIS_PACKAGE_LINK_TARGETS}
+)
 # rclcpp_components_register_nodes(xarm_joystick_input "xarm_moveit_servo::JoyToServoPub")
 rclcpp_components_register_node(xarm_joystick_input PLUGIN "xarm_moveit_servo::JoyToServoPub" EXECUTABLE xarm_joystick_input_node)
 
 add_executable(xarm_keyboard_input
   src/xarm_keyboard_input.cpp
 )
-ament_target_dependencies(xarm_keyboard_input ${THIS_PACKAGE_INCLUDE_DEPENDS})
+target_link_libraries(xarm_keyboard_input
+  PRIVATE
+  ${THIS_PACKAGE_LINK_TARGETS}
+)
 
 
 install(TARGETS
