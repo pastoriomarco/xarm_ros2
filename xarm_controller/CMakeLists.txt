@@ -65,6 +65,7 @@ target_link_libraries(
   uf_robot_hardware
   PUBLIC
   hardware_interface::hardware_interface
+  hardware_interface::mock_components
   # controller_interface
   pluginlib::pluginlib
   rclcpp::rclcpp
