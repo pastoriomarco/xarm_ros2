@@ -14,7 +14,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic
     -Wno-sign-compare
-    -Wno-unused-parameter 
+    -Wno-unused-parameter
   )
 endif()
 
@@ -61,29 +61,27 @@ target_include_directories(
   ${xarm_api_INCLUDE_DIRS}
   ${ament_INCLUDE_DIRS}
 )
-ament_target_dependencies(
+target_link_libraries(
   uf_robot_hardware
-  hardware_interface
+  PUBLIC
+  hardware_interface::hardware_interface
   # controller_interface
-  pluginlib
-  rclcpp
-  rclcpp_action
-  rclcpp_lifecycle
-  std_msgs
-  sensor_msgs
-  controller_manager_msgs
-  xarm_msgs
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  rclcpp_action::rclcpp_action
+  rclcpp_lifecycle::rclcpp_lifecycle
+  ${std_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
+  ${controller_manager_msgs_TARGETS}
+  ${xarm_msgs_TARGETS}
+  ${xarm_api_LIBRARIES}
+  ${ament_LIBRARIES}
 )
 
 # message(STATUS "xarm_sdk_INCLUDE_DIRS: ${xarm_sdk_INCLUDE_DIRS}")
 # message(WARNING "xarm_api_INCLUDE_DIRS: ${xarm_api_INCLUDE_DIRS}")
 # message(WARNING "xarm_sdk_LIBRARIES: ${xarm_sdk_LIBRARIES}")
 # message(WARNING "xarm_api_LIBRARIES: ${xarm_api_LIBRARIES}")
-
-target_link_libraries(uf_robot_hardware 
-  ${xarm_api_LIBRARIES}
-  ${ament_LIBRARIES}
-)
 
 pluginlib_export_plugin_description_file(hardware_interface uf_hardware_interface_plugins.xml)
 
